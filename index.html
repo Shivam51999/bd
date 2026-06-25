@@ -69,6 +69,19 @@
     font-size: 13px;
     color: var(--gold-light);
   }
+  .topbar .right-group { display: flex; align-items: center; gap: 12px; }
+  .topbar .exec-link {
+    background: var(--gold);
+    color: var(--navy);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+  .topbar .exec-link:hover { background: var(--gold-light); }
 
   /* ---------- TABS ---------- */
   .tabs {
@@ -316,6 +329,7 @@
     .topbar { padding: 14px 16px; }
     .topbar h1 { font-size: 15px; }
     .topbar .subtitle { display: none; }
+    .topbar .exec-link { font-size: 11px; padding: 6px 11px; }
     .container { padding: 14px; }
     .tabs { padding: 6px 12px 0; }
   }
@@ -331,7 +345,10 @@
       <div class="subtitle">Mangalam Landmarks · Business Development</div>
     </div>
   </div>
-  <div class="date-badge" id="todayBadge">—</div>
+  <div class="right-group">
+    <a href="/ceo-dashboard.html" class="exec-link" target="_blank" rel="noopener">Executive Summary →</a>
+    <div class="date-badge" id="todayBadge">—</div>
+  </div>
 </div>
 
 <div class="tabs">
