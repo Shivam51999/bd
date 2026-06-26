@@ -76,17 +76,17 @@ function render() {
         <div class="kpi-value">${mtd.siteVisits}</div>
         <div class="kpi-sub">Month-to-date</div>
       </div>
-      <div class="kpi-card teal">
+      <div class="kpi-card alt">
         <div class="kpi-label">Broker + Landowner Meetings</div>
         <div class="kpi-value">${mtd.brokerMeetings + mtd.ownerMeetings}</div>
         <div class="kpi-sub">${mtd.brokerMeetings} broker · ${mtd.ownerMeetings} landowner</div>
       </div>
-      <div class="kpi-card navy">
+      <div class="kpi-card alt2">
         <div class="kpi-label">New Leads Sourced</div>
         <div class="kpi-value">${mtd.newLeads}</div>
         <div class="kpi-sub">${mtd.proposalsPresented} proposals presented to management</div>
       </div>
-      <div class="kpi-card" style="border-left-color:var(--teal)">
+      <div class="kpi-card" style="border-left-color:var(--grey)">
         <div class="kpi-label">Active Pipeline</div>
         <div class="kpi-value">${activeDeals.length}</div>
         <div class="kpi-sub">${totalAcresPipeline.toFixed(1)} acres under evaluation/negotiation</div>
