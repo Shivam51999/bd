@@ -10,7 +10,7 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwnusKhEVckQbtT4BR_Txm1
 
 const AUTO_REFRESH_MINUTES = 10;
 
-let STATE = { dailyLogs: [], deals: [], targets: [] };
+let STATE = { dailyLogs: [], deals: [], targets: [], stageHistory: [] };
 let SELECTED_QUARTER = getCurrentQuarter();
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -103,6 +103,9 @@ function render() {
       </div>
     </div>
 
+    <div class="section-label"><span>Is BD Activity Converting? \u2014 Performance Analytics</span><div class="line"></div></div>
+    ${renderAnalyticsSection()}
+
     <div class="section-label"><span>AOP Target Progress</span><div class="line"></div></div>
     <div class="card">
       <div class="quarter-tabs" id="quarterTabs"></div>
@@ -153,6 +156,206 @@ function renderFunnelHTML() {
       <div class="funnel-stage"><div class="fs-count">${counts.Negotiation}</div><div class="fs-label">Evaluation / Negotiation</div></div>
       <div class="funnel-stage"><div class="fs-count">${counts.Closed}</div><div class="fs-label">Closed (Signed/Dropped)</div></div>
     </div>`;
+}
+
+/* ============================================================
+   ANALYTICS MODULE
+   Answers: "is BD activity actually converting, or just busywork?"
+   Three parts:
+   1. Stalled deal detection (deals stuck in same stage too long)
+   2. Stage-by-stage conversion rates (where deals die in the funnel)
+   3. Quarter-over-quarter trend of those conversion rates
+   NOTE: there is no reliable published industry benchmark for
+   "land lead to signed development deal" conversion (verified search,
+   Jun 2026) — residential agent lead-conversion stats are a different
+   business entirely. So this section deliberately compares BD's own
+   performance against ITS OWN history, not an invented external number.
+   ============================================================ */
+
+const NEGOTIATION_STAGES = ['Feasibility', 'Negotiation', 'Term Sheet', 'Due Diligence'];
+
+function getLastChangeForDeal(dealId) {
+  const events = STATE.stageHistory.filter(h => h.dealId === dealId);
+  if (events.length === 0) return null;
+  return events.reduce((latest, e) => new Date(e.changedAt) > new Date(latest.changedAt) ? e : latest, events[0]);
+}
+
+function getStalledDeals() {
+  const today = new Date();
+  const activeDeals = STATE.deals.filter(d => d.stage !== 'Signed' && d.stage !== 'Dropped');
+  return activeDeals.map(d => {
+    const lastChange = getLastChangeForDeal(d.id);
+    const sinceDate = lastChange ? new Date(lastChange.changedAt) : (d.dateAdded ? new Date(d.dateAdded) : null);
+    if (!sinceDate || isNaN(sinceDate)) return null;
+    const daysInStage = Math.floor((today - sinceDate) / (1000 * 60 * 60 * 24));
+    let severity = null;
+    if (daysInStage >= 90) severity = 'critical';
+    else if (daysInStage >= 60) severity = 'stalled';
+    else if (daysInStage >= 30) severity = 'watch';
+    if (!severity) return null;
+    return { parcelName: d.parcelName, location: d.location, stage: d.stage, daysInStage, severity };
+  }).filter(Boolean).sort((a, b) => b.daysInStage - a.daysInStage);
+}
+
+function renderStalledDealsHTML() {
+  const stalled = getStalledDeals();
+  if (stalled.length === 0) {
+    return `<div class="empty-state" style="padding:24px;"><div class="icon">\u2713</div>No deals stalled beyond 30 days in their current stage.</div>`;
+  }
+  const severityLabel = { critical: 'Critical \u2014 90+ days', stalled: 'Stalled \u2014 60-89 days', watch: 'Watch \u2014 30-59 days' };
+  const severityBadge = { critical: 'badge-closed-dropped', stalled: 'badge-negotiation', watch: 'badge-evaluation' };
+  return `<div class="table-wrap"><table>
+    <thead><tr><th>Parcel</th><th>Current Stage</th><th>Days With No Stage Movement</th><th>Flag</th></tr></thead>
+    <tbody>
+      ${stalled.map(s => `
+        <tr>
+          <td><b>${escapeHTML(s.parcelName)}</b><br><span style="color:var(--grey);font-size:12px;">${escapeHTML(s.location || '')}</span></td>
+          <td>${stageBadge(s.stage)}</td>
+          <td><b>${s.daysInStage} days</b></td>
+          <td><span class="badge ${severityBadge[s.severity]}">${severityLabel[s.severity]}</span></td>
+        </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+/**
+ * Stage-by-stage conversion, evaluated AS OF the end of a given window.
+ *
+ * Methodology note: rates use a CUMULATIVE cohort (all deals that have
+ * EVER reached a milestone by the window's end date), not "entered AND
+ * exited within this exact quarter." Land deals routinely span multiple
+ * quarters between stages, so a same-quarter-only count would wrongly
+ * show "no conversion" for a deal that entered negotiation in Q4 and
+ * signed in Q1. The cumulative approach answers the real question a CEO
+ * is asking: "of everything sourced/negotiated so far, how much has
+ * actually converted?" — and the QUARTER-OVER-QUARTER TREND of that
+ * cumulative rate still shows clearly whether conversion is improving.
+ *
+ * Activity counts (visits/leads) ARE still scoped to the quarter itself,
+ * since those are naturally period-bound (visits done that quarter).
+ */
+function computeConversionRates(start, end) {
+  const logsInRange = STATE.dailyLogs.filter(d => d.date && new Date(d.date) >= start && new Date(d.date) <= end);
+  const visits = logsInRange.reduce((s, d) => s + (Number(d.siteVisits) || 0), 0);
+  const leads = logsInRange.reduce((s, d) => s + (Number(d.newLeads) || 0), 0);
+
+  // Cumulative as-of-end-of-window: every stage transition that happened by `end`
+  const historyToDate = STATE.stageHistory.filter(h => h.changedAt && new Date(h.changedAt) <= end);
+
+  const enteredFunnel = new Set(
+    historyToDate.filter(h => h.fromStage === 'None').map(h => h.dealId)
+  );
+  const enteredNegotiation = new Set(
+    historyToDate.filter(h => NEGOTIATION_STAGES.includes(h.toStage) && !NEGOTIATION_STAGES.includes(h.fromStage)).map(h => h.dealId)
+  );
+  const signed = new Set(
+    historyToDate.filter(h => h.toStage === 'Signed').map(h => h.dealId)
+  );
+
+  return {
+    visits, leads,
+    visitsToLeads: visits > 0 ? (leads / visits) * 100 : null,
+    dealsEnteredFunnel: enteredFunnel.size,
+    dealsEnteredNegotiation: enteredNegotiation.size,
+    dealsSigned: signed.size,
+    leadsToNegotiation: enteredFunnel.size > 0 ? (enteredNegotiation.size / enteredFunnel.size) * 100 : null,
+    negotiationToSigned: enteredNegotiation.size > 0 ? (signed.size / enteredNegotiation.size) * 100 : null,
+  };
+}
+
+function getLastNQuarters(n) {
+  // Build a list of the last n quarter labels ending at the current quarter, oldest first
+  const current = getCurrentQuarter();
+  const m = current.match(/Q(\d) FY(\d\d)-(\d\d)/);
+  let qNum = Number(m[1]);
+  let fyStart = 2000 + Number(m[2]);
+  const list = [current];
+  for (let i = 1; i < n; i++) {
+    qNum -= 1;
+    if (qNum < 1) { qNum = 4; fyStart -= 1; }
+    list.unshift(`Q${qNum} FY${String(fyStart).slice(2)}-${String(fyStart + 1).slice(2)}`);
+  }
+  return list;
+}
+
+function renderConversionAnalytics() {
+  const quarters = getLastNQuarters(4);
+  const rates = quarters.map(q => {
+    const [start, end] = quarterBounds(q);
+    return { quarter: q, ...computeConversionRates(start, end) };
+  });
+  const latest = rates[rates.length - 1];
+
+  const fmtPct = v => v === null ? '\u2014' : v.toFixed(0) + '%';
+  const trendArrow = (curr, prev) => {
+    if (curr === null || prev === null) return '';
+    if (curr > prev + 2) return '<span style="color:var(--green);font-weight:700;">\u2191</span>';
+    if (curr < prev - 2) return '<span style="color:var(--red-deep);font-weight:700;">\u2193</span>';
+    return '<span style="color:var(--grey-soft);">\u2192</span>';
+  };
+  const prev = rates.length > 1 ? rates[rates.length - 2] : null;
+
+  const rows = [
+    { label: 'Site Visits \u2192 New Leads', key: 'visitsToLeads', note: `${latest.leads} leads from ${latest.visits} visits in ${latest.quarter}` },
+    { label: 'Leads \u2192 Negotiation', key: 'leadsToNegotiation', note: `${latest.dealsEnteredNegotiation} of ${latest.dealsEnteredFunnel} sourced deals have reached negotiation (cumulative, all time to date)` },
+    { label: 'Negotiation \u2192 Signed', key: 'negotiationToSigned', note: `${latest.dealsSigned} of ${latest.dealsEnteredNegotiation} negotiated deals have signed (cumulative, all time to date)` },
+  ];
+
+  const tableRows = rows.map(r => {
+    const curr = latest[r.key];
+    const prevVal = prev ? prev[r.key] : null;
+    return `<tr>
+      <td><b>${r.label}</b><br><span style="color:var(--grey);font-size:12px;">${r.note}</span></td>
+      <td style="font-size:20px;font-weight:700;font-family:Georgia,serif;">${fmtPct(curr)}</td>
+      <td>${trendArrow(curr, prevVal)} <span style="color:var(--grey);font-size:12px;">vs ${prev ? fmtPct(prevVal) : '\u2014'} last qtr</span></td>
+    </tr>`;
+  }).join('');
+
+  // Simple trend strip across last 4 quarters for negotiation->signed (the most outcome-relevant rate)
+  const trendStrip = rates.map(r => {
+    const v = r.negotiationToSigned;
+    const height = v === null ? 4 : Math.max(4, Math.min(60, v * 0.6));
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;">
+      <div style="font-size:11px;color:var(--grey);">${v === null ? '\u2014' : v.toFixed(0) + '%'}</div>
+      <div style="width:28px;height:${height}px;background:var(--ink);border-radius:3px 3px 0 0;"></div>
+      <div style="font-size:10px;color:var(--grey-soft);text-transform:uppercase;">${r.quarter.split(' ')[0]}</div>
+    </div>`;
+  }).join('');
+
+  return `
+    <div class="card">
+      <div class="card-title">Conversion Funnel \u2014 As of End of ${latest.quarter}</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Stage Transition</th><th>Rate</th><th>Trend</th></tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table></div>
+      <p style="font-size:11.5px;color:var(--grey-soft);margin-top:14px;line-height:1.5;">
+        Negotiation/signing rates are cumulative (all deals to date), since land deals often span multiple
+        quarters between stages \u2014 a same-quarter-only count would understate real conversion. Visit-to-lead
+        rate IS quarter-specific, since that activity is naturally period-bound. These are compared against
+        BD's OWN performance over time, not an external benchmark \u2014 there is no reliable published industry
+        benchmark for land-acquisition lead-to-signed conversion (residential buyer/seller lead stats are a
+        different business and don't transfer here). Use the trend, not a fixed target, to judge direction.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Negotiation \u2192 Signed Rate (Cumulative), Last 4 Quarters</div>
+      <div style="display:flex;align-items:flex-end;gap:10px;height:90px;padding:0 8px;">${trendStrip}</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Stalled Deals <span class="as-of">flagged at 30 / 60 / 90+ days with no stage movement</span></div>
+      ${renderStalledDealsHTML()}
+    </div>
+  `;
+}
+
+function renderAnalyticsSection() {
+  if (STATE.deals.length === 0 && STATE.dailyLogs.length === 0) {
+    return `<div class="card"><div class="empty-state"><div class="icon">\ud83d\udcca</div>Not enough data yet to compute conversion analytics.</div></div>`;
+  }
+  return renderConversionAnalytics();
 }
 
 function progressRow(label, actual, target, isDecimal) {
