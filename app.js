@@ -4,7 +4,7 @@
    ============================================================ */
 
 // ⚠️ REPLACE with your deployed Apps Script Web App URL after deployment
-const API_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
+const API_URL = "https://script.google.com/macros/s/AKfycbwnusKhEVckQbtT4BR_Txm15UjH4w1oaUylIuY6uvJK9kYpU0RdHVm6aa7IhMyg0U0_/exec";
 
 let STATE = { dailyLogs: [], deals: [], targets: [] };
 let CURRENT_QUARTER = getCurrentQuarter();
