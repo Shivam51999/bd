@@ -47,10 +47,15 @@ source breakup detail, and negotiation terms (landowner ask / current offer).
 2. Extensions → Apps Script. Delete default code, paste in `Code.gs`.
 3. Run `seedFY27Targets` once manually from the function dropdown to
    pre-fill quarterly targets (you'll be asked to authorize permissions).
-4. Deploy → New Deployment → type: **Web app**.
+4. **If you already had deals in your Pipeline sheet from before this
+   update**, also run `backfillStageHistoryForExistingDeals` once
+   manually — this seeds a starting history record for each existing
+   deal so stalled-deal detection works correctly for them too. Safe to
+   skip if this is a fresh sheet with no deals yet.
+5. Deploy → New Deployment → type: **Web app**.
    - Execute as: **Me**
    - Who has access: **Anyone**
-5. Copy the **Web app URL** (`https://script.google.com/macros/s/XXXX/exec`)
+6. Copy the **Web app URL** (`https://script.google.com/macros/s/XXXX/exec`)
 
 > Every time you edit `Code.gs`, you must
 > **Deploy → Manage Deployments → Edit (pencil) → New Version → Deploy**
@@ -91,7 +96,43 @@ Stages (mapped into 4 phases for the funnel):
 deals signed. Actuals are computed live from DailyLog and Pipeline, not
 stored separately, so both frontends always show consistent numbers.
 
-## Notes on target logic
+**StageHistory** (new): one row per stage transition, written
+automatically whenever a deal's stage changes. Append-only — never edit
+directly. Powers the analytics section above.
+
+## Performance Analytics (CEO Dashboard)
+Beyond activity counts, the CEO Dashboard includes a section answering
+"is this activity actually converting, or just busywork":
+
+- **Stage-by-stage conversion rates**: Site Visits → New Leads (this
+  quarter), Leads → Negotiation (cumulative), Negotiation → Signed
+  (cumulative) — pinpoints exactly where deals are dying in the funnel,
+  not just a vague overall percentage.
+- **Quarter-over-quarter trend**: the Negotiation → Signed rate plotted
+  across the last 4 quarters, so you can see if conversion is genuinely
+  improving or just generating more unconverted activity over time.
+- **Stalled deal flags**: any active deal that hasn't changed stage in
+  30+ (watch), 60+ (stalled), or 90+ (critical) days — the most direct
+  signal that a deal is being reported on but not actually worked.
+
+**Important honesty note**: there is no reliable published industry
+benchmark for "land-acquisition lead to signed development deal"
+conversion (verified via search — residential agent lead-conversion
+stats, e.g. Zillow/portal leads, are a completely different business and
+don't transfer to institutional land sourcing). So this dashboard
+deliberately compares BD's own performance against its own history
+(quarter over quarter), rather than inventing a fake external benchmark
+to grade against. The trend direction is the signal, not a fixed target.
+
+**Why a 4th sheet (StageHistory)**: to compute "days stuck in current
+stage" and accurate quarter-over-quarter conversion, the backend now logs
+every stage transition (with timestamp) to an append-only `StageHistory`
+sheet, written automatically whenever a deal's stage changes in the entry
+tool. This sheet is created automatically — no manual setup needed. Deals
+that existed before this update (no history yet) gracefully fall back to
+using their `dateAdded` timestamp for stalled-deal detection.
+
+
 - "Proposals presented" actuals sum Daily Log entries within each quarter.
 - "Acres signed" / "deals signed" actuals sum Pipeline deals at stage =
   Signed, using `lastUpdated` (when it was marked Signed) as the
