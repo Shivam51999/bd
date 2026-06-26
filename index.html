@@ -338,6 +338,7 @@
   <button class="tab-btn" data-view="dailylog">Daily Log</button>
   <button class="tab-btn" data-view="pipeline">Deal Pipeline</button>
   <button class="tab-btn" data-view="targets">Targets &amp; AOP</button>
+  <button class="tab-btn" data-view="directory">Directory</button>
 </div>
 
 <div class="container">
@@ -363,8 +364,10 @@
           <div class="form-field"><label>Calls / Follow-ups</label><input type="number" id="dl_callsFollowups" min="0" value="0"></div>
           <div class="form-field"><label>Proposals Presented to Mgmt</label><input type="number" id="dl_proposalsPresented" min="0" value="0"></div>
           <div class="form-field full"><label>Site Visit Locations</label><input type="text" id="dl_siteVisitLocations" placeholder="e.g. Wagholi parcel, Chakan parcel"></div>
-          <div class="form-field full"><label>Broker Names / Agencies Met</label><input type="text" id="dl_brokerNames" placeholder="e.g. Patil Associates, R. Deshmukh"></div>
-          <div class="form-field full"><label>Landowner Names Met</label><input type="text" id="dl_ownerNames" placeholder="e.g. Kale family (Wagholi)"></div>
+          <div class="form-field full"><label>Broker Names / Agencies Met</label><input type="text" id="dl_brokerNames" list="brokerSuggestions" placeholder="e.g. Patil Associates, R. Deshmukh"></div>
+          <div class="form-field full"><label>Landowner Names Met</label><input type="text" id="dl_ownerNames" list="ownerSuggestions" placeholder="e.g. Kale family (Wagholi)"></div>
+          <datalist id="brokerSuggestions"></datalist>
+          <datalist id="ownerSuggestions"></datalist>
           <div class="form-field full"><label>New Lead Source Breakup</label><input type="text" id="dl_leadSourceBreakup" placeholder="e.g. 2 via broker, 1 via reference"></div>
           <div class="form-field full"><label>Notes / Blockers</label><textarea id="dl_notesBlockers" placeholder="Anything noteworthy, pending approvals, escalations needed"></textarea></div>
         </div>
@@ -414,19 +417,67 @@
     </div>
   </div>
 
-  <!-- ============ TARGETS VIEW ============ -->
+  <!-- ============ TARGETS VIEW (READ-ONLY) ============ -->
+  <!-- Setting/editing AOP targets is a CEO Dashboard privilege only.
+       This tool deliberately has no input fields or save button here —
+       do not add them back without an explicit instruction to do so. -->
   <div class="view" id="view-targets">
     <div class="card">
       <div class="card-title">FY26-27 AOP Targets — Quarterly</div>
       <p style="font-size:13px;color:var(--grey);margin-bottom:16px;">
-        Basis: FY26-27 AOP — 7-8 proposals and 20 acres for the year. Adjust per quarter below; actuals roll up automatically from Daily Log and Deal Pipeline entries.
+        Basis: FY26-27 AOP — 7-8 proposals and 20 acres for the year. View only — targets are set and adjusted from the CEO Dashboard. Actuals roll up automatically from Daily Log and Deal Pipeline entries.
       </p>
       <div class="table-wrap">
         <table id="targetsTable">
           <thead><tr>
-            <th>Quarter</th><th>Target Proposals</th><th>Actual Proposals</th><th>Target Acres</th><th>Actual Acres (Signed)</th><th>Target Deals Signed</th><th>Actual Deals Signed</th><th></th>
+            <th>Quarter</th><th>Target Proposals</th><th>Actual Proposals</th><th>Target Acres</th><th>Actual Acres (Signed)</th><th>Target Deals Signed</th><th>Actual Deals Signed</th>
           </tr></thead>
-          <tbody id="targetsTableBody"><tr><td colspan="8">Loading…</td></tr></tbody>
+          <tbody id="targetsTableBody"><tr><td colspan="7">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ DIRECTORY VIEW ============ -->
+  <div class="view" id="view-directory">
+    <div class="card">
+      <div class="card-title">Add Contact</div>
+      <p style="font-size:12.5px;color:var(--grey);margin-bottom:16px;">
+        Brokers, developers, and landowners saved here appear as suggestions while typing names in Daily Log and Deal Pipeline. Entries can be added and edited, but — by design — never deleted, so this list only grows into a permanent record.
+      </p>
+      <form id="directoryForm">
+        <div class="form-grid">
+          <div class="form-field"><label>Name</label><input type="text" id="dir_name" required placeholder="e.g. Patil Associates"></div>
+          <div class="form-field"><label>Phone Number</label><input type="tel" id="dir_phone" placeholder="e.g. 9876543210"></div>
+          <div class="form-field">
+            <label>Type</label>
+            <select id="dir_type">
+              <option value="Broker">Broker</option>
+              <option value="Developer">Developer</option>
+              <option value="Landowner">Landowner</option>
+            </select>
+          </div>
+          <div class="form-field full"><label>Notes (optional)</label><input type="text" id="dir_notes" placeholder="e.g. covers Wagholi-Chakan belt"></div>
+        </div>
+        <div class="btn-row">
+          <button type="button" class="btn btn-outline" id="resetDirectoryForm">Clear</button>
+          <button type="submit" class="btn btn-gold">Save Contact</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        All Contacts
+        <span class="small-link" id="dirSearchClear" style="display:none;">Clear search</span>
+      </div>
+      <div class="form-field" style="max-width:320px;margin-bottom:14px;">
+        <input type="text" id="dirSearchInput" placeholder="Search by name or type…">
+      </div>
+      <div class="table-wrap">
+        <table id="directoryTable">
+          <thead><tr><th>Name</th><th>Phone</th><th>Type</th><th>Notes</th><th>Added</th><th></th></tr></thead>
+          <tbody id="directoryTableBody"><tr><td colspan="6">Loading…</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -453,7 +504,8 @@
             <option>Broker</option><option>Reference</option><option>Landowner Direct</option><option>Cold Outreach</option><option>Other</option>
           </select>
         </div>
-        <div class="form-field"><label>Source Detail (name)</label><input type="text" id="deal_sourceDetail" placeholder="e.g. Patil Associates"></div>
+        <div class="form-field"><label>Source Detail (name)</label><input type="text" id="deal_sourceDetail" list="dealSourceSuggestions" placeholder="e.g. Patil Associates"></div>
+        <datalist id="dealSourceSuggestions"></datalist>
         <div class="form-field">
           <label>Stage</label>
           <select id="deal_stage">
@@ -477,6 +529,36 @@
       <div class="btn-row">
         <button type="button" class="btn btn-outline" id="deleteDealBtn" style="display:none;color:var(--red);">Delete</button>
         <button type="submit" class="btn btn-gold">Save Deal</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ DIRECTORY EDIT MODAL ============ -->
+<!-- Edit only. No delete button exists here or anywhere else for Directory entries — by design. -->
+<div class="modal-overlay" id="directoryModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Edit Contact</h3>
+      <button class="modal-close" id="directoryModalClose">&times;</button>
+    </div>
+    <form id="directoryEditForm">
+      <input type="hidden" id="diredit_id">
+      <div class="form-grid">
+        <div class="form-field"><label>Name</label><input type="text" id="diredit_name" required></div>
+        <div class="form-field"><label>Phone Number</label><input type="tel" id="diredit_phone"></div>
+        <div class="form-field">
+          <label>Type</label>
+          <select id="diredit_type">
+            <option value="Broker">Broker</option>
+            <option value="Developer">Developer</option>
+            <option value="Landowner">Landowner</option>
+          </select>
+        </div>
+        <div class="form-field full"><label>Notes</label><input type="text" id="diredit_notes"></div>
+      </div>
+      <div class="btn-row">
+        <button type="submit" class="btn btn-gold">Save Changes</button>
       </div>
     </form>
   </div>
