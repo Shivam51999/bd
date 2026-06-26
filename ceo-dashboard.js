@@ -1,8 +1,11 @@
 /* ============================================================
-   MANGALAM LANDMARKS — BD CEO DASHBOARD (READ-ONLY)
-   Pulls sanitized summary data only via the `getCeoSummary` action.
-   No forms, no edit/delete — this file intentionally contains
-   no write calls to the API.
+   MANGALAM LANDMARKS — BD CEO DASHBOARD
+   Pulls sanitized summary data via the `getCeoSummary` action.
+   This file is read-only EXCEPT for one deliberate capability:
+   setting/editing quarterly AOP targets (the setTarget action).
+   That is the ONLY write call in this file. Do not add edit/delete
+   for deals, daily logs, or directory entries here — those remain
+   exclusively the BD entry tool's responsibility.
    ============================================================ */
 
 // ⚠️ Use the SAME Apps Script Web App URL as the BD entry tool.
@@ -112,6 +115,14 @@ function render() {
       ${progressRow('Proposals Presented', qProposalsActual, qTarget.targetProposals || 2)}
       ${progressRow('Acres Signed', qAcresActual, qTarget.targetAcres || 5, true)}
       ${progressRow('Deals Signed', qDealsSignedActual, qTarget.targetDealsSigned || 1)}
+    </div>
+
+    <div class="section-label"><span>Set AOP Targets</span><div class="line"></div></div>
+    <div class="card">
+      <p style="font-size:12.5px;color:var(--grey);margin-bottom:16px;">
+        Targets are set here only — the BD entry tool shows these as view-only. Actuals above roll up automatically; only the target numbers are editable.
+      </p>
+      ${renderTargetEditTable()}
     </div>
 
     <div class="section-label"><span>Land Deal Pipeline</span><div class="line"></div></div>
@@ -367,6 +378,56 @@ function progressRow(label, actual, target, isDecimal) {
       <div class="pr-label"><span class="name">${label}</span><span class="val">${a} / ${target}</span></div>
       <div class="progress-bar-bg"><div class="progress-bar-fill ${cls}" style="width:${pct}%"></div></div>
     </div>`;
+}
+
+/* ---------------- TARGET EDITING (the one deliberate write capability) ----------------
+   This dashboard is read-only everywhere else. setTarget is the single
+   exception, intentionally placed here per product decision: target-
+   setting moved from the BD entry tool to CEO-only control. Do not add
+   any other write action (deals/logs/directory) to this file. */
+
+function renderTargetEditTable() {
+  const quarters = ['Q1 FY26-27', 'Q2 FY26-27', 'Q3 FY26-27', 'Q4 FY26-27'];
+  const rows = quarters.map(q => {
+    const t = STATE.targets.find(x => x.periodType === 'quarterly' && x.periodLabel === q) || {};
+    return `<tr>
+      <td><b>${q}</b></td>
+      <td><input type="number" min="0" value="${t.targetProposals || 0}" data-q="${q}" data-field="targetProposals" class="target-edit-input" style="width:72px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;"></td>
+      <td><input type="number" min="0" step="0.1" value="${t.targetAcres || 0}" data-q="${q}" data-field="targetAcres" class="target-edit-input" style="width:72px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;"></td>
+      <td><input type="number" min="0" value="${t.targetDealsSigned || 0}" data-q="${q}" data-field="targetDealsSigned" class="target-edit-input" style="width:72px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;"></td>
+      <td><button class="quarter-tab" style="background:var(--ink);color:white;border-color:var(--ink);" onclick="saveTarget('${q}')">Save</button></td>
+    </tr>`;
+  }).join('');
+  return `<div class="table-wrap"><table>
+    <thead><tr><th>Quarter</th><th>Target Proposals</th><th>Target Acres</th><th>Target Deals Signed</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+async function saveTarget(quarterLabel) {
+  if (API_URL.includes('PASTE_YOUR')) { showCeoToast('API_URL is not configured yet.', true); return; }
+  const inputs = document.querySelectorAll(`.target-edit-input[data-q="${quarterLabel}"]`);
+  const payload = { periodType: 'quarterly', periodLabel: quarterLabel };
+  inputs.forEach(inp => payload[inp.dataset.field] = Number(inp.value) || 0);
+  try {
+    const url = `${API_URL}?action=setTarget&payload=${encodeURIComponent(JSON.stringify(payload))}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Network error: ' + res.status);
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Unknown error');
+    showCeoToast(`${quarterLabel} targets saved.`);
+    await loadData(); // refresh everything so progress bars reflect the new target immediately
+  } catch (err) {
+    showCeoToast('Failed to save target: ' + err.message, true);
+  }
+}
+
+function showCeoToast(msg, isError) {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => t.classList.remove('show'), 3200);
 }
 
 function renderPipelineTable() {
