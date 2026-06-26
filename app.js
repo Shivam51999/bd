@@ -54,6 +54,7 @@ async function loadAll() {
     renderDailyLogTable();
     renderPipeline();
     renderTargets();
+    renderFunnelTargets();
     renderDirectory();
     populateAutocompleteSuggestions();
   } catch (err) {
@@ -429,6 +430,29 @@ function renderTargets() {
       <td>${actualAcres.toFixed(1)}</td>
       <td>${t.targetDealsSigned || 0}</td>
       <td>${actualDeals}</td>
+    </tr>`;
+  }).join('');
+}
+
+// READ-ONLY. AOP Lead Conversion Funnel (Sourcing -> BD Head Filter ->
+// BD Head Refinement -> Signed). Actuals for these three stages are
+// entered manually from the CEO Dashboard — they are NOT derived from
+// Pipeline deal-stage data, per product decision to keep Pipeline's own
+// stages independent of this funnel model.
+function renderFunnelTargets() {
+  const quarters = ['Q1 FY26-27', 'Q2 FY26-27', 'Q3 FY26-27', 'Q4 FY26-27'];
+  const body = document.getElementById('funnelTargetsTableBody');
+  if (!body) return;
+  body.innerHTML = quarters.map(q => {
+    const t = STATE.targets.find(x => x.periodType === 'quarterly' && x.periodLabel === q) || {};
+    return `<tr>
+      <td><b>${q}</b></td>
+      <td>${t.targetLeadsSourced || 0}</td>
+      <td>${t.actualLeadsSourced || 0}</td>
+      <td>${t.targetLeadsQualified || 0}</td>
+      <td>${t.actualLeadsQualified || 0}</td>
+      <td>${t.targetProspects || 0}</td>
+      <td>${t.actualProspects || 0}</td>
     </tr>`;
   }).join('');
 }
