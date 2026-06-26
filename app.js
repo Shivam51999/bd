@@ -6,7 +6,7 @@
 // ⚠️ REPLACE with your deployed Apps Script Web App URL after deployment
 const API_URL = "https://script.google.com/macros/s/AKfycbwnusKhEVckQbtT4BR_Txm15UjH4w1oaUylIuY6uvJK9kYpU0RdHVm6aa7IhMyg0U0_/exec";
 
-let STATE = { dailyLogs: [], deals: [], targets: [] };
+let STATE = { dailyLogs: [], deals: [], targets: [], directory: [] };
 let CURRENT_QUARTER = getCurrentQuarter();
 
 /* ---------------- INIT ---------------- */
@@ -18,6 +18,8 @@ document.addEventListener('DOMContentLoaded', () => {
   setupTabs();
   setupDailyLogForm();
   setupDealModal();
+  setupDirectoryForm();
+  setupDirectoryModal();
   loadAll();
 });
 
@@ -52,6 +54,8 @@ async function loadAll() {
     renderDailyLogTable();
     renderPipeline();
     renderTargets();
+    renderDirectory();
+    populateAutocompleteSuggestions();
   } catch (err) {
     showToast('Failed to load data: ' + err.message, true);
     if (API_URL.includes('PASTE_YOUR')) {
@@ -406,6 +410,9 @@ function stageBadge(stage) {
 
 /* ---------------- TARGETS ---------------- */
 
+// READ-ONLY in this tool. Setting/editing AOP targets is a CEO Dashboard
+// privilege only — do not reintroduce input fields or a save action here
+// without an explicit instruction to do so.
 function renderTargets() {
   const quarters = ['Q1 FY26-27', 'Q2 FY26-27', 'Q3 FY26-27', 'Q4 FY26-27'];
   const body = document.getElementById('targetsTableBody');
@@ -416,28 +423,145 @@ function renderTargets() {
     const actualDeals = countDealsSignedInQuarter(q);
     return `<tr>
       <td><b>${q}</b></td>
-      <td><input type="number" value="${t.targetProposals || 0}" data-q="${q}" data-field="targetProposals" class="target-input" style="width:70px;padding:5px;border:1px solid var(--border);border-radius:5px;"></td>
+      <td>${t.targetProposals || 0}</td>
       <td>${actualProposals}</td>
-      <td><input type="number" value="${t.targetAcres || 0}" data-q="${q}" data-field="targetAcres" class="target-input" style="width:70px;padding:5px;border:1px solid var(--border);border-radius:5px;"></td>
+      <td>${t.targetAcres || 0}</td>
       <td>${actualAcres.toFixed(1)}</td>
-      <td><input type="number" value="${t.targetDealsSigned || 0}" data-q="${q}" data-field="targetDealsSigned" class="target-input" style="width:70px;padding:5px;border:1px solid var(--border);border-radius:5px;"></td>
+      <td>${t.targetDealsSigned || 0}</td>
       <td>${actualDeals}</td>
-      <td><button class="btn btn-gold btn-sm" onclick="saveTargetRow('${q}')">Save</button></td>
     </tr>`;
   }).join('');
 }
 
-async function saveTargetRow(q) {
-  const inputs = document.querySelectorAll(`.target-input[data-q="${q}"]`);
-  const payload = { periodType: 'quarterly', periodLabel: q };
-  inputs.forEach(inp => payload[inp.dataset.field] = Number(inp.value) || 0);
-  try {
-    await apiCall('setTarget', payload);
-    showToast(`${q} targets saved.`);
-    await loadAll();
-  } catch (err) {
-    showToast('Failed to save target: ' + err.message, true);
+/* ---------------- DIRECTORY ----------------
+   Add and Edit only. There is deliberately NO delete function in this file
+   and NO delete action on the backend for Directory entries — entries can
+   only be added or edited, never removed. Do not add delete capability
+   here even if asked later; it's a product constraint, not a missing
+   feature. */
+
+let DIR_SEARCH_TERM = '';
+
+function setupDirectoryForm() {
+  document.getElementById('directoryForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = {
+      name: document.getElementById('dir_name').value.trim(),
+      phone: document.getElementById('dir_phone').value.trim(),
+      type: document.getElementById('dir_type').value,
+      notes: document.getElementById('dir_notes').value.trim(),
+    };
+    if (!payload.name) { showToast('Name is required.', true); return; }
+    try {
+      await apiCall('addDirectoryEntry', payload);
+      showToast('Contact saved to Directory.');
+      document.getElementById('directoryForm').reset();
+      await loadAll();
+    } catch (err) {
+      showToast('Failed to save contact: ' + err.message, true);
+    }
+  });
+
+  document.getElementById('resetDirectoryForm').addEventListener('click', () => {
+    document.getElementById('directoryForm').reset();
+  });
+
+  const searchInput = document.getElementById('dirSearchInput');
+  searchInput.addEventListener('input', () => {
+    DIR_SEARCH_TERM = searchInput.value.trim().toLowerCase();
+    document.getElementById('dirSearchClear').style.display = DIR_SEARCH_TERM ? 'inline' : 'none';
+    renderDirectory();
+  });
+  document.getElementById('dirSearchClear').addEventListener('click', () => {
+    DIR_SEARCH_TERM = '';
+    searchInput.value = '';
+    document.getElementById('dirSearchClear').style.display = 'none';
+    renderDirectory();
+  });
+}
+
+function renderDirectory() {
+  const body = document.getElementById('directoryTableBody');
+  if (!body) return; // guard in case markup isn't present yet
+  let rows = [...STATE.directory];
+  if (DIR_SEARCH_TERM) {
+    rows = rows.filter(d =>
+      (d.name || '').toLowerCase().includes(DIR_SEARCH_TERM) ||
+      (d.type || '').toLowerCase().includes(DIR_SEARCH_TERM)
+    );
   }
+  rows.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+  if (rows.length === 0) {
+    body.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--grey);">${STATE.directory.length === 0 ? 'No contacts saved yet. Add one above.' : 'No contacts match your search.'}</td></tr>`;
+    return;
+  }
+  body.innerHTML = rows.map(d => `
+    <tr style="cursor:pointer;" onclick='openDirectoryModal(${JSON.stringify(d).replace(/'/g, "&#39;")})'>
+      <td><b>${escapeHTML(d.name)}</b></td>
+      <td>${escapeHTML(d.phone || '—')}</td>
+      <td><span class="badge badge-sourcing">${escapeHTML(d.type || '—')}</span></td>
+      <td style="color:var(--grey);font-size:12px;">${escapeHTML(d.notes || '—')}</td>
+      <td style="color:var(--grey);font-size:12px;">${d.dateAdded ? formatDateShort(d.dateAdded) : '—'}</td>
+      <td><button class="btn btn-outline btn-sm" onclick='event.stopPropagation(); openDirectoryModal(${JSON.stringify(d).replace(/'/g, "&#39;")})'>Edit</button></td>
+    </tr>`).join('');
+}
+
+function setupDirectoryModal() {
+  document.getElementById('directoryModalClose').addEventListener('click', closeDirectoryModal);
+  document.getElementById('directoryModal').addEventListener('click', (e) => {
+    if (e.target.id === 'directoryModal') closeDirectoryModal();
+  });
+  document.getElementById('directoryEditForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = {
+      id: document.getElementById('diredit_id').value,
+      name: document.getElementById('diredit_name').value.trim(),
+      phone: document.getElementById('diredit_phone').value.trim(),
+      type: document.getElementById('diredit_type').value,
+      notes: document.getElementById('diredit_notes').value.trim(),
+    };
+    try {
+      await apiCall('updateDirectoryEntry', payload);
+      showToast('Contact updated.');
+      closeDirectoryModal();
+      await loadAll();
+    } catch (err) {
+      showToast('Failed to update contact: ' + err.message, true);
+    }
+  });
+}
+
+function openDirectoryModal(entry) {
+  document.getElementById('diredit_id').value = entry.id;
+  document.getElementById('diredit_name').value = entry.name || '';
+  document.getElementById('diredit_phone').value = entry.phone || '';
+  document.getElementById('diredit_type').value = entry.type || 'Broker';
+  document.getElementById('diredit_notes').value = entry.notes || '';
+  document.getElementById('directoryModal').classList.add('active');
+}
+
+function closeDirectoryModal() {
+  document.getElementById('directoryModal').classList.remove('active');
+}
+
+// Populates the <datalist> elements used for name autocomplete in
+// Daily Log (broker/owner names) and the Pipeline modal (source detail).
+// This is suggestion-only — typing any other text is still accepted,
+// per design (Directory is not a hard lookup gate).
+function populateAutocompleteSuggestions() {
+  const brokers = STATE.directory.filter(d => d.type === 'Broker');
+  const owners = STATE.directory.filter(d => d.type === 'Landowner');
+  const all = STATE.directory;
+
+  const fill = (listId, entries) => {
+    const list = document.getElementById(listId);
+    if (!list) return;
+    list.innerHTML = entries.map(d => `<option value="${escapeHTML(d.name)}">`).join('');
+  };
+  fill('brokerSuggestions', brokers);
+  fill('ownerSuggestions', owners);
+  fill('dealSourceSuggestions', all);
 }
 
 /* ---------------- QUARTER / DATE HELPERS ---------------- */
