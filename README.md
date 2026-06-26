@@ -14,6 +14,17 @@ calls `getCeoSummary`, which is backend-filtered to exclude sensitive fields.
 It's not just hidden in the UI; the data never leaves the server in the
 first place.
 
+## Branding
+Both files use Mangalam Landmarks' actual brand identity (sampled from the
+provided logo): charcoal ink (#424242), secondary grey (#727272), and the
+brand red accent (#EA1D24) on a near-white background. The logo itself is
+embedded directly in both HTML files (base64), so no separate image hosting
+or asset path is needed — just deploy the files as-is.
+
+The two tools are intentionally NOT cross-linked from within the app (no
+"Executive Summary" button on the entry tool) — navigate to each via its
+own URL/bookmark.
+
 ## What the CEO Dashboard shows vs. hides
 **Shows:** activity counts (site visits, meetings, leads, proposals),
 the deal funnel, AOP target progress (switchable by quarter), and the full
