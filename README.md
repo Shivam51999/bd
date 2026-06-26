@@ -34,10 +34,49 @@ GDV, next action + date.
 **Hides:** daily notes/blockers, broker and landowner contact names, lead
 source breakup detail, and negotiation terms (landowner ask / current offer).
 
+## Who can set AOP Targets
+**Target-setting is a CEO Dashboard-only capability.** The BD entry tool's
+"Targets & AOP" tab is fully view-only — plain numbers, no input fields,
+no save button. Quarterly targets (proposals, acres, deals signed) are
+set and edited exclusively from a "Set AOP Targets" panel on the CEO
+Dashboard. This is the *one* deliberate write capability on an otherwise
+read-only dashboard — everything else there (deals, daily logs, directory)
+remains strictly read-only, and that boundary is documented directly in
+both `Code.gs` and `ceo-dashboard.js` so it doesn't get blurred later.
+
+## Lead Conversion Funnel (AOP)
+Per the Mangalam Land Acquisition Strategy FY2026-27 (BD Dept AOP), there's
+a 4-stage lead funnel target on top of the existing proposals/acres/deals
+targets:
+
+1. **Sourcing** — raw leads from brokers, outreach, referrals (target: ~100/quarter)
+2. **BD Head Filter** — geography + preliminary IRR + title prima facie (target: ~30/quarter)
+3. **BD Head Refinement** — full IRR model, site visit, legal Gate 2 (target: ~10/quarter)
+4. **SSS Meeting / Signed** — this IS the existing "Deals Signed" target, no duplicate field
+
+**Important: this funnel is tracked independently of the Deal Pipeline tab.**
+Per product decision, Pipeline's own deal-stages (Lead → Site Visit Done →
+Negotiation phases → Signed/Dropped) were NOT remapped to match the AOP's
+funnel stages — they're a different taxonomy serving a different purpose
+(per-parcel deal tracking vs. aggregate lead-volume targets). That means
+**actuals for Sourcing/BD Head Filter/BD Head Refinement are entered
+manually** (not derived from any other sheet), same as targets.
+
+Both target-setting AND actual-entry for this funnel live exclusively on
+the CEO Dashboard ("Set Lead Conversion Funnel" card), consistent with the
+existing rule that all target-setting is a CEO Dashboard-only capability.
+The BD entry tool shows this funnel as a second read-only table on its
+Targets tab.
+
+`seedFY27Targets()` in `Code.gs` pre-fills quarterly funnel targets based
+on the AOP document's actual quarterly cadence (Q1/Q2: 100 sourced, Q3:
+30 redevelopment-focused, Q4: 50 for FY28 pipeline) — re-run it manually
+if you want to reset to those defaults.
+
 ## Files
 - `Code.gs` — Apps Script backend (shared by both frontends)
 - `index.html` / `app.js` — BD Daily Entry tool
-- `ceo-dashboard.html` / `ceo-dashboard.js` — CEO Dashboard (read-only)
+- `ceo-dashboard.html` / `ceo-dashboard.js` — CEO Dashboard (read-only except for setting AOP targets)
 - `vercel.json` — static deployment config
 
 ## Setup steps
@@ -100,7 +139,30 @@ stored separately, so both frontends always show consistent numbers.
 automatically whenever a deal's stage changes. Append-only — never edit
 directly. Powers the analytics section above.
 
-## Performance Analytics (CEO Dashboard)
+**Directory** (new): one row per contact (broker/developer/landowner).
+Add and edit only — see the Directory section above for why delete is
+deliberately absent.
+
+## Directory (contacts)
+A new "Directory" tab in the BD Daily Entry tool stores brokers,
+developers, and landowners (name, phone, type, notes). Two rules are
+enforced by design, not just convention:
+
+- **No delete, anywhere.** There is no delete button in the UI, no
+  `deleteDirectoryEntry` action in the backend, and the generic
+  `deleteRow()` helper is never called with `'Directory'` as the sheet
+  name. Entries can only be added or edited — once saved, a contact row
+  is permanent. If a contact stops being relevant, edit its notes rather
+  than removing it.
+- **Edit is allowed** for name, phone, type, and notes — useful for fixing
+  typos or updating a phone number.
+
+Directory entries power **autocomplete suggestions** (not a hard lookup)
+in Daily Log's Broker/Landowner name fields and the Pipeline modal's
+Source Detail field — you can still type any name freely; matching
+Directory entries just show up as suggestions while typing.
+
+
 Beyond activity counts, the CEO Dashboard includes a section answering
 "is this activity actually converting, or just busywork":
 
