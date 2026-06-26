@@ -117,12 +117,31 @@ function render() {
       ${progressRow('Deals Signed', qDealsSignedActual, qTarget.targetDealsSigned || 1)}
     </div>
 
+    <div class="section-label"><span>AOP Lead Conversion Funnel — ${SELECTED_QUARTER}</span><div class="line"></div></div>
+    <div class="card">
+      <p style="font-size:12px;color:var(--grey-soft);margin-bottom:16px;">
+        Per the AOP's funnel model (100 Sourcing \u2192 30 BD Head Filter \u2192 10 BD Head Refinement \u2192 1 Signed). Tracked manually, separately from the Deal Pipeline above \u2014 actuals here are entered by hand, not derived from Pipeline deal-stages.
+      </p>
+      ${progressRow('Sourcing (Stage 1)', qTarget.actualLeadsSourced || 0, qTarget.targetLeadsSourced || 100)}
+      ${progressRow('BD Head Filter (Stage 2)', qTarget.actualLeadsQualified || 0, qTarget.targetLeadsQualified || 30)}
+      ${progressRow('BD Head Refinement (Stage 3)', qTarget.actualProspects || 0, qTarget.targetProspects || 10)}
+      ${progressRow('SSS Meeting / Signed (Stage 4)', qDealsSignedActual, qTarget.targetDealsSigned || 1)}
+    </div>
+
     <div class="section-label"><span>Set AOP Targets</span><div class="line"></div></div>
     <div class="card">
       <p style="font-size:12.5px;color:var(--grey);margin-bottom:16px;">
         Targets are set here only — the BD entry tool shows these as view-only. Actuals above roll up automatically; only the target numbers are editable.
       </p>
       ${renderTargetEditTable()}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Set Lead Conversion Funnel</div>
+      <p style="font-size:12.5px;color:var(--grey);margin-bottom:16px;">
+        Per the AOP's funnel model (Sourcing → BD Head Filter → BD Head Refinement → Signed). Unlike the targets above, actuals for these three stages are entered manually here too — they are not derived from Daily Log or Deal Pipeline data.
+      </p>
+      ${renderFunnelTargetEditTable()}
     </div>
 
     <div class="section-label"><span>Land Deal Pipeline</span><div class="line"></div></div>
@@ -402,6 +421,55 @@ function renderTargetEditTable() {
     <thead><tr><th>Quarter</th><th>Target Proposals</th><th>Target Acres</th><th>Target Deals Signed</th><th></th></tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
+}
+
+function _editInput(q, field, value, width) {
+  return `<input type="number" min="0" value="${value || 0}" data-q="${q}" data-field="${field}" class="target-edit-input-funnel" style="width:${width || 64}px;padding:6px 7px;border:1px solid var(--border);border-radius:6px;font-size:12.5px;">`;
+}
+
+function renderFunnelTargetEditTable() {
+  const quarters = ['Q1 FY26-27', 'Q2 FY26-27', 'Q3 FY26-27', 'Q4 FY26-27'];
+  const rows = quarters.map(q => {
+    const t = STATE.targets.find(x => x.periodType === 'quarterly' && x.periodLabel === q) || {};
+    return `<tr>
+      <td><b>${q}</b></td>
+      <td>${_editInput(q, 'targetLeadsSourced', t.targetLeadsSourced)}</td>
+      <td>${_editInput(q, 'actualLeadsSourced', t.actualLeadsSourced)}</td>
+      <td>${_editInput(q, 'targetLeadsQualified', t.targetLeadsQualified)}</td>
+      <td>${_editInput(q, 'actualLeadsQualified', t.actualLeadsQualified)}</td>
+      <td>${_editInput(q, 'targetProspects', t.targetProspects)}</td>
+      <td>${_editInput(q, 'actualProspects', t.actualProspects)}</td>
+      <td><button class="quarter-tab" style="background:var(--ink);color:white;border-color:var(--ink);" onclick="saveFunnelTarget('${q}')">Save</button></td>
+    </tr>`;
+  }).join('');
+  return `<div class="table-wrap"><table>
+    <thead><tr>
+      <th>Quarter</th>
+      <th>Target Sourced</th><th>Actual Sourced</th>
+      <th>Target Qualified</th><th>Actual Qualified</th>
+      <th>Target Prospects</th><th>Actual Prospects</th>
+      <th></th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+async function saveFunnelTarget(quarterLabel) {
+  if (API_URL.includes('PASTE_YOUR')) { showCeoToast('API_URL is not configured yet.', true); return; }
+  const inputs = document.querySelectorAll(`.target-edit-input-funnel[data-q="${quarterLabel}"]`);
+  const payload = { periodType: 'quarterly', periodLabel: quarterLabel };
+  inputs.forEach(inp => payload[inp.dataset.field] = Number(inp.value) || 0);
+  try {
+    const url = `${API_URL}?action=setTarget&payload=${encodeURIComponent(JSON.stringify(payload))}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Network error: ' + res.status);
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Unknown error');
+    showCeoToast(`${quarterLabel} funnel targets saved.`);
+    await loadData();
+  } catch (err) {
+    showCeoToast('Failed to save funnel targets: ' + err.message, true);
+  }
 }
 
 async function saveTarget(quarterLabel) {
