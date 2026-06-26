@@ -4,7 +4,7 @@
    ============================================================ */
 
 // ⚠️ REPLACE with your deployed Apps Script Web App URL after deployment
-const API_URL = "https://script.google.com/macros/s/AKfycbwnusKhEVckQbtT4BR_Txm15UjH4w1oaUylIuY6uvJK9kYpU0RdHVm6aa7IhMyg0U0_/exec";
+const API_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
 
 let STATE = { dailyLogs: [], deals: [], targets: [] };
 let CURRENT_QUARTER = getCurrentQuarter();
@@ -108,17 +108,17 @@ function renderDashboard() {
         <div class="kpi-value">${mtd.siteVisits}</div>
         <div class="kpi-sub">This month so far</div>
       </div>
-      <div class="kpi-card teal">
+      <div class="kpi-card alt">
         <div class="kpi-label">Broker + Owner Meetings (MTD)</div>
         <div class="kpi-value">${mtd.brokerMeetings + mtd.ownerMeetings}</div>
         <div class="kpi-sub">${mtd.brokerMeetings} broker · ${mtd.ownerMeetings} owner</div>
       </div>
-      <div class="kpi-card navy">
+      <div class="kpi-card alt2">
         <div class="kpi-label">New Leads Sourced (MTD)</div>
         <div class="kpi-value">${mtd.newLeads}</div>
         <div class="kpi-sub">${mtd.proposalsPresented} proposals presented to mgmt</div>
       </div>
-      <div class="kpi-card" style="border-left-color:var(--teal)">
+      <div class="kpi-card" style="border-left-color:var(--grey)">
         <div class="kpi-label">Active Pipeline</div>
         <div class="kpi-value">${activeDeals.length}</div>
         <div class="kpi-sub">${totalAcresPipeline.toFixed(1)} acres under evaluation/negotiation</div>
