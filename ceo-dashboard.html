@@ -134,6 +134,17 @@
 
   .footer-note { text-align: center; font-size: 11.5px; color: var(--grey-soft); margin-top: 40px; letter-spacing: 0.2px; }
 
+  .toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--ink); color: white;
+    padding: 12px 20px; border-radius: 8px;
+    box-shadow: var(--shadow-lg); font-size: 13px; font-weight: 600;
+    z-index: 2000; opacity: 0; transform: translateY(10px);
+    transition: all 0.25s;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.error { background: var(--red-deep); }
+
   @media (max-width: 640px) {
     .topbar { padding: 16px 18px; flex-direction: column; align-items: flex-start; gap: 12px; }
     .topbar .logo-img { height: 34px; }
@@ -162,6 +173,8 @@
 <div class="container" id="dashboardRoot">
   <div class="empty-state"><div class="icon">⏳</div>Loading dashboard…</div>
 </div>
+
+<div class="toast" id="toast"></div>
 
 <script src="ceo-dashboard.js"></script>
 </body>
