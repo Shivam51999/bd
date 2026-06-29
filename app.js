@@ -480,10 +480,12 @@ function renderTargets() {
 }
 
 // READ-ONLY. AOP Lead Conversion Funnel (Sourcing -> BD Head Filter ->
-// BD Head Refinement -> Signed). Actuals for these three stages are
-// entered manually from the CEO Dashboard — they are NOT derived from
-// Pipeline deal-stage data, per product decision to keep Pipeline's own
-// stages independent of this funnel model.
+// BD Head Refinement -> Signed). By design, actuals for these three
+// stages are entered directly in the Google Sheet's Targets tab — there
+// is intentionally no input UI for them in EITHER this tool or the CEO
+// Dashboard (confirmed/decided explicitly, not an oversight). They are
+// NOT derived from Pipeline deal-stage data, per product decision to
+// keep Pipeline's own stages independent of this funnel model.
 function renderFunnelTargets() {
   const quarters = ['Q1 FY26-27', 'Q2 FY26-27', 'Q3 FY26-27', 'Q4 FY26-27'];
   const body = document.getElementById('funnelTargetsTableBody');
