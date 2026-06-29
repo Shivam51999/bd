@@ -409,9 +409,9 @@
       <div class="table-wrap">
         <table id="pipelineTable">
           <thead><tr>
-            <th>Parcel / Location</th><th>Area (acres)</th><th>Source</th><th>Stage</th><th>Expected GDV</th><th>Next Action</th><th>Next Action Date</th><th></th>
+            <th>Parcel / Location</th><th>Area (acres)</th><th>Source</th><th>Stage</th><th>Category</th><th>Expected GDV</th><th>Next Action</th><th>Next Action Date</th><th></th>
           </tr></thead>
-          <tbody id="pipelineTableBody"><tr><td colspan="8">Loading…</td></tr></tbody>
+          <tbody id="pipelineTableBody"><tr><td colspan="9">Loading…</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -515,6 +515,7 @@
       <div class="form-grid">
         <div class="form-field full"><label>Parcel Name</label><input type="text" id="deal_parcelName" required placeholder="e.g. Kale Land, Wagholi"></div>
         <div class="form-field"><label>Location</label><input type="text" id="deal_location" placeholder="e.g. Wagholi, Pune"></div>
+        <div class="form-field"><label>Survey Number</label><input type="text" id="deal_surveyNumber" placeholder="e.g. Survey No. 45/2A"></div>
         <div class="form-field"><label>Area (acres)</label><input type="number" step="0.01" id="deal_areaAcres" placeholder="0.00"></div>
         <div class="form-field">
           <label>Source</label>
@@ -523,6 +524,7 @@
           </select>
         </div>
         <div class="form-field"><label>Source Detail (name)</label><input type="text" id="deal_sourceDetail" list="dealSourceSuggestions" placeholder="e.g. Patil Associates"></div>
+        <div class="form-field"><label>Source Phone</label><input type="tel" id="deal_sourcePhone" placeholder="e.g. 9876543210"></div>
         <datalist id="dealSourceSuggestions"></datalist>
         <div class="form-field">
           <label>Stage</label>
@@ -535,6 +537,14 @@
             <option value="Due Diligence">Due Diligence</option>
             <option value="Signed">Closed — Signed</option>
             <option value="Dropped">Closed — Dropped</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Lead Category</label>
+          <select id="deal_leadCategory">
+            <option value="Hot">🟢 Hot</option>
+            <option value="Warm" selected>🟡 Warm</option>
+            <option value="Cold">🔴 Cold</option>
           </select>
         </div>
         <div class="form-field"><label>Expected GDV (₹ Cr)</label><input type="number" step="0.01" id="deal_expectedGDV"></div>
