@@ -248,7 +248,7 @@ function renderDailyLogTable() {
   const body = document.getElementById('dailyLogTableBody');
   const sorted = [...STATE.dailyLogs].sort((a, b) => new Date(b.date) - new Date(a.date));
   if (sorted.length === 0) {
-    body.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--ink-muted);">No entries yet. Log your first day above.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="10" style="text-align:center;color:var(--ink-muted);">No entries yet. Log your first day above.</td></tr>`;
     return;
   }
   body.innerHTML = sorted.slice(0, 60).map(d => `
@@ -258,6 +258,7 @@ function renderDailyLogTable() {
       <td>${d.brokerMeetings || 0}</td>
       <td>${d.ownerMeetings || 0}</td>
       <td>${d.newLeads || 0}</td>
+      <td style="max-width:160px;font-size:12px;color:var(--ink-muted);">${escapeHTML(truncate(d.leadSourceBreakup, 50)) || '—'}</td>
       <td>${d.callsFollowups || 0}</td>
       <td>${d.proposalsPresented || 0}</td>
       <td style="max-width:220px;font-size:12px;color:var(--ink-muted);">${escapeHTML(truncate(d.notesBlockers, 60))}</td>
@@ -280,8 +281,8 @@ async function deleteDailyLog(id) {
 }
 
 function exportDailyLogCSV() {
-  const headers = ['Date', 'Site Visits', 'Broker Meetings', 'Owner Meetings', 'New Leads', 'Calls/Followups', 'Proposals Presented', 'Notes'];
-  const rows = STATE.dailyLogs.map(d => [d.date, d.siteVisits, d.brokerMeetings, d.ownerMeetings, d.newLeads, d.callsFollowups, d.proposalsPresented, (d.notesBlockers || '').replace(/,/g, ';')]);
+  const headers = ['Date', 'Site Visits', 'Broker Meetings', 'Owner Meetings', 'New Leads', 'Lead Source Breakup', 'Calls/Followups', 'Proposals Presented', 'Notes'];
+  const rows = STATE.dailyLogs.map(d => [d.date, d.siteVisits, d.brokerMeetings, d.ownerMeetings, d.newLeads, (d.leadSourceBreakup || '').replace(/,/g, ';'), d.callsFollowups, d.proposalsPresented, (d.notesBlockers || '').replace(/,/g, ';')]);
   downloadCSV([headers, ...rows], 'BD_Daily_Log.csv');
 }
 
