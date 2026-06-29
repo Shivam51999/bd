@@ -137,7 +137,7 @@ function render() {
     <div class="section-label"><span>AOP Lead Conversion Funnel — ${SELECTED_QUARTER}</span><div class="line"></div></div>
     <div class="card">
       <p style="font-size:12px;color:var(--grey-soft);margin-bottom:16px;">
-        Per the AOP's funnel model (Sourcing \u2192 BD Head Filter \u2192 BD Head Refinement \u2192 Signed). Shows the CONVERSION RATIO between stages \u2014 not targets \u2014 for the selected quarter.
+        Per the AOP's funnel model (Sourcing \u2192 BD Head Filter \u2192 BD Head Refinement \u2192 Signed). Shows the CONVERSION RATIO between stages \u2014 not targets \u2014 for the selected quarter. By design, the underlying Sourced/Qualified/Prospects numbers are updated directly in the Google Sheet's Targets tab, not through either app \u2014 this is intentional, not a missing feature.
       </p>
       ${renderFunnelConversionRatios(qTarget, qDealsSignedActual)}
     </div>
