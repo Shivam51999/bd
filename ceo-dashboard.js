@@ -96,6 +96,14 @@ function render() {
       </div>
     </div>
 
+    <div class="card">
+      <div class="card-title">Daily Activity Summary <span class="as-of">${thisMonthLogs.length} day${thisMonthLogs.length === 1 ? '' : 's'} logged this month</span></div>
+      <p style="font-size:12px;color:var(--grey-soft);margin-bottom:16px;">
+        Day-by-day activity counts for the current month. Broker/landowner names and notes stay in the BD entry tool — only counts are shown here.
+      </p>
+      ${renderDailyLogSummaryTable(thisMonthLogs)}
+    </div>
+
     <div class="section-label"><span>Deal Funnel</span><div class="line"></div></div>
     <div class="card">
       ${renderFunnelHTML()}
@@ -169,6 +177,36 @@ function renderQuarterTabs() {
       render();
     });
   });
+}
+
+// Day-by-day Daily Log summary for the CURRENT MONTH only — counts only,
+// no names/notes (those never leave the BD entry tool, sanitized at the
+// backend in getCeoSummaryData). Sorted most-recent-day-first.
+function renderDailyLogSummaryTable(monthLogs) {
+  if (!monthLogs || monthLogs.length === 0) {
+    return `<div class="empty-state" style="padding:24px;"><div class="icon">\ud83d\udcc5</div>No daily entries logged yet this month.</div>`;
+  }
+  const sorted = [...monthLogs].sort((a, b) => {
+    const da = extractDateOnly(a.date) || '';
+    const db = extractDateOnly(b.date) || '';
+    return db.localeCompare(da);
+  });
+  const rows = sorted.map(d => `
+    <tr>
+      <td><b>${formatDateShort(d.date)}</b></td>
+      <td>${d.siteVisits || 0}</td>
+      <td>${d.brokerMeetings || 0}</td>
+      <td>${d.ownerMeetings || 0}</td>
+      <td>${d.newLeads || 0}</td>
+      <td>${d.callsFollowups || 0}</td>
+      <td>${d.proposalsPresented || 0}</td>
+    </tr>`).join('');
+  return `<div class="table-wrap"><table>
+    <thead><tr>
+      <th>Date</th><th>Site Visits</th><th>Broker Mtgs</th><th>Owner Mtgs</th><th>New Leads</th><th>Calls</th><th>Proposals</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
 }
 
 function renderFunnelHTML() {
