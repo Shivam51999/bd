@@ -409,9 +409,9 @@
       <div class="table-wrap">
         <table id="pipelineTable">
           <thead><tr>
-            <th>Parcel / Location</th><th>Area (acres)</th><th>Source</th><th>Stage</th><th>Category</th><th>Expected GDV</th><th>Next Action</th><th>Next Action Date</th><th></th>
+            <th>Parcel / Location</th><th>Area (acres)</th><th>Source</th><th>Stage</th><th>Category</th><th>Legal Gate</th><th>Expected GDV</th><th>Next Action</th><th>Next Action Date</th><th></th>
           </tr></thead>
-          <tbody id="pipelineTableBody"><tr><td colspan="9">Loading…</td></tr></tbody>
+          <tbody id="pipelineTableBody"><tr><td colspan="10">Loading…</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -547,7 +547,32 @@
             <option value="Cold">🔴 Cold</option>
           </select>
         </div>
+        <div class="form-field">
+          <label>Deal Structure</label>
+          <select id="deal_dealStructure">
+            <option value="Outright Purchase">Outright Purchase (≤5 ac)</option>
+            <option value="JDA">Joint Development (JDA, ≤15 ac)</option>
+            <option value="Redevelopment">Redevelopment</option>
+            <option value="Sanctioned Takeover">Sanctioned Takeover</option>
+          </select>
+        </div>
         <div class="form-field"><label>Expected GDV (₹ Cr)</label><input type="number" step="0.01" id="deal_expectedGDV"></div>
+        <div class="form-field full" style="margin-top:6px;">
+          <label style="text-transform:none;letter-spacing:0;font-size:12px;color:var(--grey);font-weight:700;">Financial Floors — AOP Section 05 (all five must pass before this reaches SSS)</label>
+        </div>
+        <div class="form-field"><label>IRR % (floor ≥30%)</label><input type="number" step="0.1" id="deal_irrPct" placeholder="e.g. 32"></div>
+        <div class="form-field"><label>PAT % (floor ≥10%)</label><input type="number" step="0.1" id="deal_patPct" placeholder="e.g. 13"></div>
+        <div class="form-field"><label>Profit/sft ₹ (floor ≥500, ≥1000 if Redevelopment)</label><input type="number" step="1" id="deal_profitPerSft" placeholder="e.g. 650"></div>
+        <div class="form-field"><label>Completion Timeline, years (floor ≤3)</label><input type="number" step="0.1" id="deal_completionYears" placeholder="e.g. 2.5"></div>
+        <div class="form-field">
+          <label>Legal / Title Gate</label>
+          <select id="deal_legalGateStatus">
+            <option value="Not Started">Not Started</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Gate 2 Cleared">Gate 2 Cleared</option>
+            <option value="Flagged Issue">Flagged Issue</option>
+          </select>
+        </div>
         <div class="form-field"><label>Landowner Ask</label><input type="text" id="deal_landownerAsk" placeholder="e.g. 35% area share"></div>
         <div class="form-field"><label>Current Offer</label><input type="text" id="deal_currentOffer" placeholder="e.g. 28% area share"></div>
         <div class="form-field"><label>Next Action</label><input type="text" id="deal_nextAction" placeholder="e.g. Title due diligence"></div>
