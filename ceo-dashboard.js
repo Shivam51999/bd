@@ -15,6 +15,7 @@ const AUTO_REFRESH_MINUTES = 10;
 
 let STATE = { dailyLogs: [], deals: [], targets: [], stageHistory: [] };
 let SELECTED_QUARTER = getCurrentQuarter();
+let PIPELINE_FILTER = { search: '', category: 'All', status: 'All' };
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('todayBadge').textContent = formatDateLong(new Date());
@@ -78,6 +79,8 @@ function render() {
   const qDealsSignedActual = countDealsSignedInQuarter(SELECTED_QUARTER);
 
   const html = `
+    ${renderAOPRedFlags(activeDeals, signedDeals, qTarget)}
+
     <div class="section-label"><span>This Month</span><div class="line"></div></div>
     <div class="kpi-grid">
       <div class="kpi-card">
@@ -148,9 +151,11 @@ function render() {
     </div>
 
     <div class="section-label"><span>Land Deal Pipeline</span><div class="line"></div></div>
+    ${renderMicroMarketComparison()}
     <div class="card">
       <div class="card-title">All Parcels<span class="as-of">${STATE.deals.length} total</span></div>
-      ${renderPipelineTable()}
+      ${renderPipelineFilterBar()}
+      <div id="pipelineCardsContainer">${renderPipelineTable()}</div>
     </div>
 
     <div class="section-label"><span>Source-Wise Performance</span><div class="line"></div></div>
@@ -159,6 +164,14 @@ function render() {
         How each lead source (Broker, Reference, Landowner Direct, Cold Outreach, Other) is actually converting \u2014 not just how many leads it brings in.
       </p>
       ${renderSourcePerformanceTable()}
+    </div>
+
+    <div class="section-label"><span>FY26-27 Forecast \u2014 Run-Rate Projection</span><div class="line"></div></div>
+    <div class="card">
+      <p style="font-size:12px;color:var(--grey-soft);margin-bottom:16px;">
+        At the current pace, where will we land by FY year-end (March 2027) against the AOP's annual targets? This projects forward from what's been achieved so far \u2014 it's a planning signal, not a guarantee.
+      </p>
+      ${renderAnnualForecast()}
     </div>
 
     <div class="footer-note">Auto-refreshes every ${AUTO_REFRESH_MINUTES} minutes · Daily notes and free-text remarks stay in the BD entry tool \u2014 everything else shown here is the full record</div>
@@ -245,6 +258,110 @@ function renderFunnelHTML() {
 
 const NEGOTIATION_STAGES = ['Feasibility', 'Negotiation', 'Term Sheet', 'Due Diligence'];
 
+/**
+ * AOP NAMED RED FLAGS — Section 07 of the Mangalam Land Acquisition
+ * Strategy FY2026-27. These are the EXACT thresholds from that document,
+ * not generic heuristics. Four of the five rules are checkable from data;
+ * one ("MOU signed without SSS authority") is a process/governance rule
+ * that has no corresponding field to check automatically — it's listed
+ * as a standing reminder, not an auto-detected flag.
+ *
+ * Hardcoded dates (June 15, 2026 etc.) are specific to FY2026-27 as named
+ * in the AOP. If a future fiscal year's AOP names different dates, this
+ * function needs updating — it is deliberately NOT a generic "30 days
+ * after fiscal year start" calculation, because the source document
+ * names a literal calendar date, not a relative one.
+ */
+function renderAOPRedFlags(activeDeals, signedDeals, currentQuarterTarget) {
+  const today = new Date();
+  const flags = [];
+
+  // Flag 1: "0 proposals signed by June 15 -> SSS+RP emergency review within 48 hours"
+  const june15FY27 = new Date('2026-06-15T23:59:59');
+  if (today > june15FY27 && signedDeals.length === 0) {
+    flags.push({
+      severity: 'critical',
+      title: '0 proposals signed by June 15',
+      detail: 'Per AOP: SSS + RP emergency BD review required within 48 hours.'
+    });
+  }
+
+  // Flag 2: "Pipeline drops below 60 active leads -> GM-BD activates additional
+  // broker channels that week." The AOP's unit here is raw SOURCED LEADS
+  // (Stage 1 of the funnel, tracked as actualLeadsSourced), NOT Pipeline
+  // deal/parcel count — those are different and much smaller numbers.
+  // Falls back to "no data" framing if the current quarter has no
+  // actualLeadsSourced entered yet, rather than false-alarming on 0.
+  const leadsSourced = Number(currentQuarterTarget && currentQuarterTarget.actualLeadsSourced) || 0;
+  const hasLeadsData = currentQuarterTarget && currentQuarterTarget.actualLeadsSourced !== '' && currentQuarterTarget.actualLeadsSourced !== undefined;
+  if (hasLeadsData && leadsSourced < 60) {
+    flags.push({
+      severity: leadsSourced < 30 ? 'critical' : 'warning',
+      title: `Active sourced leads at ${leadsSourced} this quarter — below the 60-lead floor`,
+      detail: 'Per AOP: GM-BD/BD Manager should activate additional broker channels this week.'
+    });
+  }
+
+  // Flag 3: "Any deal below 30% IRR reaches SSS -> BD Head failed filter"
+  const negotiationOrLater = ['Feasibility', 'Negotiation', 'Term Sheet', 'Due Diligence', 'Signed'];
+  const irrFailuresPastFilter = activeDeals.filter(d => {
+    if (!negotiationOrLater.includes(d.stage)) return false;
+    const irr = Number(d.irrPct);
+    return d.irrPct !== '' && d.irrPct !== undefined && !isNaN(irr) && irr < 30;
+  });
+  if (irrFailuresPastFilter.length > 0) {
+    flags.push({
+      severity: 'critical',
+      title: `${irrFailuresPastFilter.length} deal(s) past BD filter with IRR below 30%`,
+      detail: 'Per AOP: any deal below the 30% IRR floor reaching this stage means the filter step was skipped. Deals: ' +
+        irrFailuresPastFilter.map(d => escapeHTML(d.parcelName)).join(', ')
+    });
+  }
+
+  // Flag 4: "Any title issue found post-Gate 2 -> Deal paused, Atul briefs SSS within 48 hours"
+  const titleIssues = activeDeals.filter(d => d.legalGateStatus === 'Flagged Issue');
+  if (titleIssues.length > 0) {
+    flags.push({
+      severity: 'critical',
+      title: `${titleIssues.length} deal(s) with a flagged title/legal issue`,
+      detail: 'Per AOP: deal should be paused; Legal should brief SSS within 48 hours. Deals: ' +
+        titleIssues.map(d => escapeHTML(d.parcelName)).join(', ')
+    });
+  }
+
+  // Flag 5 (process reminder, not auto-detected): "MOU signed without SSS
+  // authority -> non-negotiable breach." No field captures signing
+  // authority, so this can't be auto-flagged from data.
+  const governanceReminder = signedDeals.length > 0;
+
+  if (flags.length === 0 && !governanceReminder) {
+    return `<div class="card" style="border-left:4px solid var(--green);">
+      <div class="empty-state" style="padding:12px 0;"><div class="icon">\u2705</div>No AOP red flags triggered right now.</div>
+    </div>`;
+  }
+
+  const sevStyle = { critical: { bg: '#FAE3E2', border: 'var(--red-deep)', icon: '\ud83d\udd34' }, warning: { bg: '#FBF1DD', border: '#8A6D1F', icon: '\ud83d\udfe1' } };
+  const flagCards = flags.map(f => {
+    const s = sevStyle[f.severity];
+    return `<div style="background:${s.bg};border-left:4px solid ${s.border};border-radius:8px;padding:14px 16px;margin-bottom:10px;">
+      <div style="font-weight:700;font-size:13.5px;color:var(--ink);">${s.icon} ${f.title}</div>
+      <div style="font-size:12px;color:var(--grey);margin-top:4px;">${f.detail}</div>
+    </div>`;
+  }).join('');
+
+  const reminderCard = governanceReminder ? `<div style="background:#EFEFEF;border-left:4px solid var(--grey);border-radius:8px;padding:14px 16px;">
+      <div style="font-weight:700;font-size:13.5px;color:var(--ink);">\u2139\ufe0f Governance reminder</div>
+      <div style="font-size:12px;color:var(--grey);margin-top:4px;">Per AOP: MOUs signed without SSS authority are a non-negotiable breach, reviewed by RP within 24 hours. This isn't auto-checkable from system data — confirm signing authority was followed for all ${signedDeals.length} signed deal(s).</div>
+    </div>` : '';
+
+  return `
+    <div class="section-label"><span>\u26a0\ufe0f AOP Red Flags</span><div class="line"></div></div>
+    <div class="card">
+      ${flagCards}${reminderCard}
+    </div>
+  `;
+}
+
 // Per-TARGET on-track/at-risk status (distinct from per-DEAL status above).
 // Compares how much of the quarter has elapsed against how much of the
 // target has been achieved. A deal can be individually "on track" while
@@ -253,10 +370,13 @@ const NEGOTIATION_STAGES = ['Feasibility', 'Negotiation', 'Term Sheet', 'Due Dil
 function getTargetPaceStatus(qLabel, achievedPct) {
   const [startCal, endCal] = quarterBoundsCalendar(qLabel);
   const start = new Date(startCal + 'T00:00:00');
-  const end = new Date(endCal + 'T23:59:59');
+  // Exclusive end boundary (midnight of the day AFTER endCal) avoids the
+  // same off-by-one that affected renderAnnualForecast — see that
+  // function's comment for why end-of-day + "+1" double-counts.
+  const endExclusive = new Date(new Date(endCal + 'T00:00:00').getTime() + 24 * 60 * 60 * 1000);
   const today = new Date();
-  const totalDays = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
-  let elapsedDays = Math.round((today - start) / (1000 * 60 * 60 * 24)) + 1;
+  const totalDays = Math.max(1, Math.round((endExclusive - start) / (1000 * 60 * 60 * 24)));
+  let elapsedDays = Math.round((today - start) / (1000 * 60 * 60 * 24));
   elapsedDays = Math.max(0, Math.min(totalDays, elapsedDays));
   const elapsedPct = (elapsedDays / totalDays) * 100;
 
@@ -512,6 +632,62 @@ function renderSourcePerformanceTable() {
   </table></div>`;
 }
 
+// Simple linear run-rate forecast: projects full FY26-27 (Apr 2026-Mar
+// 2027) outcomes from whatever has been achieved so far, scaled by how
+// much of the fiscal year has elapsed. This is a planning signal, not a
+// statistical model — it doesn't know about seasonality (e.g. monsoon
+// months typically slow site visits) or pipeline composition, just pace.
+function renderAnnualForecast() {
+  const fyStart = new Date('2026-04-01T00:00:00');
+  const fyEndExclusive = new Date('2027-04-01T00:00:00'); // exclusive boundary avoids off-by-one from inclusive end-of-day arithmetic
+  const today = new Date();
+  const totalFYDays = Math.round((fyEndExclusive - fyStart) / (1000 * 60 * 60 * 24));
+  let elapsedFYDays = Math.round((today - fyStart) / (1000 * 60 * 60 * 24));
+  elapsedFYDays = Math.max(1, Math.min(totalFYDays, elapsedFYDays));
+  const elapsedPct = elapsedFYDays / totalFYDays;
+
+  const allQuarters = ['Q1 FY26-27', 'Q2 FY26-27', 'Q3 FY26-27', 'Q4 FY26-27'];
+  const dealsSignedSoFar = STATE.deals.filter(d => d.stage === 'Signed');
+  const acresSignedSoFar = dealsSignedSoFar.reduce((s, d) => s + (Number(d.areaAcres) || 0), 0);
+  const proposalsSoFar = allQuarters.reduce((s, q) => s + sumProposalsInQuarter(q), 0);
+
+  const annualTargets = { proposals: 7.5, acres: 20, dealsSigned: 7.5 }; // AOP: 7-8 proposals/deals, midpoint 7.5
+
+  const project = achieved => elapsedPct > 0 ? achieved / elapsedPct : 0;
+  const projectedProposals = project(proposalsSoFar);
+  const projectedAcres = project(acresSignedSoFar);
+  const projectedDealsSigned = project(dealsSignedSoFar.length);
+
+  const forecastRow = (label, achieved, projected, target, isDecimal) => {
+    const a = isDecimal ? achieved.toFixed(1) : achieved;
+    const p = isDecimal ? projected.toFixed(1) : Math.round(projected);
+    const onTrack = projected >= target * 0.9; // within 10% of annual target counts as on-track
+    const cls = onTrack ? 'badge-closed-signed' : (projected >= target * 0.7 ? 'badge-evaluation' : 'badge-closed-dropped');
+    const label2 = onTrack ? 'On Track' : (projected >= target * 0.7 ? 'At Risk' : 'Critical');
+    return `<tr>
+      <td><b>${label}</b></td>
+      <td>${a}</td>
+      <td style="font-weight:700;">${p}</td>
+      <td>${target}</td>
+      <td><span class="badge ${cls}">${label2}</span></td>
+    </tr>`;
+  };
+
+  return `
+    <div class="table-wrap"><table>
+      <thead><tr><th>Metric</th><th>Achieved So Far</th><th>Projected Year-End</th><th>AOP Annual Target</th><th>Forecast</th></tr></thead>
+      <tbody>
+        ${forecastRow('Proposals Presented', proposalsSoFar, projectedProposals, annualTargets.proposals)}
+        ${forecastRow('Acres Signed', acresSignedSoFar, projectedAcres, annualTargets.acres, true)}
+        ${forecastRow('Deals Signed', dealsSignedSoFar.length, projectedDealsSigned, annualTargets.dealsSigned)}
+      </tbody>
+    </table></div>
+    <p style="font-size:11px;color:var(--grey-soft);margin-top:12px;">
+      ${Math.round(elapsedPct * 100)}% of FY26-27 elapsed (${elapsedFYDays} of ${totalFYDays} days). Projection = achieved-so-far \u00f7 % of year elapsed \u2014 a straight-line extrapolation, not a forecast model.
+    </p>
+  `;
+}
+
 function renderAnalyticsSection() {
   if (STATE.deals.length === 0 && STATE.dailyLogs.length === 0) {
     return `<div class="card"><div class="empty-state"><div class="icon">\ud83d\udcca</div>Not enough data yet to compute conversion analytics.</div></div>`;
@@ -645,20 +821,167 @@ function showCeoToast(msg, isError) {
   setTimeout(() => t.classList.remove('show'), 3200);
 }
 
+// Mirrors checkFinancialFloors() in Code.gs exactly — kept in sync
+// manually since this runs in the browser, not Apps Script. If you
+// change the AOP thresholds in one place, change them in both.
+function checkFinancialFloors(deal) {
+  const irr = Number(deal.irrPct);
+  const pat = Number(deal.patPct);
+  const profitSft = Number(deal.profitPerSft);
+  const years = Number(deal.completionYears);
+  const isRedevelopment = deal.dealStructure === 'Redevelopment';
+  const profitFloor = isRedevelopment ? 1000 : 500;
+
+  const notEmpty = v => v !== '' && v !== undefined && v !== null;
+
+  const floors = {
+    irr: { value: irr, floor: 30, pass: notEmpty(deal.irrPct) && !isNaN(irr) && irr >= 30 },
+    pat: { value: pat, floor: 10, pass: notEmpty(deal.patPct) && !isNaN(pat) && pat >= 10 },
+    profitPerSft: { value: profitSft, floor: profitFloor, pass: notEmpty(deal.profitPerSft) && !isNaN(profitSft) && profitSft >= profitFloor },
+    completionYears: { value: years, floor: 3, pass: notEmpty(deal.completionYears) && !isNaN(years) && years > 0 && years <= 3 }
+  };
+
+  const allEntered = ['irrPct', 'patPct', 'profitPerSft', 'completionYears'].every(f => notEmpty(deal[f]));
+  const allPass = floors.irr.pass && floors.pat.pass && floors.profitPerSft.pass && floors.completionYears.pass;
+  const verdict = !allEntered ? 'Pending' : (allPass ? 'Pass' : 'Fail');
+  return { floors, verdict, profitFloor };
+}
+
+function floorVerdictBadge(verdict) {
+  const map = { Pass: 'badge-closed-signed', Fail: 'badge-closed-dropped', Pending: 'badge-sourcing' };
+  return `<span class="badge ${map[verdict] || 'badge-sourcing'}">Floors: ${verdict}</span>`;
+}
+
+function legalGateBadge(status) {
+  const map = {
+    'Not Started': 'badge-sourcing',
+    'In Progress': 'badge-evaluation',
+    'Gate 2 Cleared': 'badge-closed-signed',
+    'Flagged Issue': 'badge-closed-dropped'
+  };
+  const label = status || 'Not Started';
+  return `<span class="badge ${map[label] || 'badge-sourcing'}">Legal: ${escapeHTML(label)}</span>`;
+}
+
+// Groups ACTIVE deals (not Signed/Dropped) by location/micro-market and
+// shows a side-by-side comparison wherever 2+ deals compete for the same
+// micro-market — answering "of the parcels we're chasing in this area,
+// which is actually the better bet?" Skipped entirely if no micro-market
+// has more than one active deal (nothing to compare).
+function renderMicroMarketComparison() {
+  const active = STATE.deals.filter(d => d.stage !== 'Signed' && d.stage !== 'Dropped');
+  const byLocation = {};
+  active.forEach(d => {
+    const key = (d.location || 'Unspecified').trim();
+    if (!byLocation[key]) byLocation[key] = [];
+    byLocation[key].push(d);
+  });
+  const competing = Object.entries(byLocation).filter(([, deals]) => deals.length >= 2);
+  if (competing.length === 0) return '';
+
+  const sections = competing.map(([location, deals]) => {
+    const floorRows = deals.map(d => checkFinancialFloors(d));
+    const rows = deals.map((d, i) => {
+      const floors = floorRows[i];
+      const status = getDealStatus(d);
+      return `<tr>
+        <td><b>${escapeHTML(d.parcelName)}</b>${d.surveyNumber ? '<br><span style="color:var(--grey);font-size:11px;">Survey No. ' + escapeHTML(d.surveyNumber) + '</span>' : ''}</td>
+        <td>${stageBadge(d.stage)}</td>
+        <td>${categoryBadge(d.leadCategory)}</td>
+        <td>${d.areaAcres || '\u2014'}</td>
+        <td>${d.expectedGDV ? '\u20b9' + d.expectedGDV + ' Cr' : '\u2014'}</td>
+        <td>${d.irrPct !== '' && d.irrPct !== undefined ? d.irrPct + '%' : '\u2014'}</td>
+        <td>${floorVerdictBadge(floors.verdict)}</td>
+        <td><span class="badge ${status.cls}">${status.label}</span></td>
+      </tr>`;
+    }).join('');
+    return `
+      <div style="margin-bottom:24px;">
+        <div style="font-weight:700;font-size:13.5px;color:var(--ink);margin-bottom:10px;">${escapeHTML(location)} \u2014 ${deals.length} competing parcels</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Parcel</th><th>Stage</th><th>Category</th><th>Acres</th><th>Expected GDV</th><th>IRR</th><th>Floors</th><th>Status</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="card">
+      <div class="card-title">Micro-Market Comparison<span class="as-of">${competing.length} market${competing.length === 1 ? '' : 's'} with multiple active parcels</span></div>
+      <p style="font-size:12px;color:var(--grey-soft);margin-bottom:16px;">
+        Where 2+ active parcels compete for the same location \u2014 compared side by side on economics and status.
+      </p>
+      ${sections}
+    </div>`;
+}
+
+function renderPipelineFilterBar() {
+  const categories = ['All', 'Hot', 'Warm', 'Cold'];
+  const statuses = ['All', 'On Track', 'At Risk', 'Stalled', 'Critical', 'Signed', 'Dropped'];
+  return `
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+      <input type="text" id="pipelineSearchInput" placeholder="Search parcel, location, survey no...\u2026"
+        value="${escapeHTML(PIPELINE_FILTER.search)}"
+        style="flex:1;min-width:180px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;"
+        oninput="updatePipelineFilter('search', this.value)">
+      <select id="pipelineCategoryFilter" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;"
+        onchange="updatePipelineFilter('category', this.value)">
+        ${categories.map(c => `<option value="${c}" ${PIPELINE_FILTER.category === c ? 'selected' : ''}>${c === 'All' ? 'All Categories' : c}</option>`).join('')}
+      </select>
+      <select id="pipelineStatusFilter" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;"
+        onchange="updatePipelineFilter('status', this.value)">
+        ${statuses.map(s => `<option value="${s}" ${PIPELINE_FILTER.status === s ? 'selected' : ''}>${s === 'All' ? 'All Statuses' : s}</option>`).join('')}
+      </select>
+    </div>`;
+}
+
+// Re-renders ONLY the pipeline cards container, not the whole dashboard —
+// keeps filtering responsive without losing scroll position or re-fetching.
+function updatePipelineFilter(field, value) {
+  PIPELINE_FILTER[field] = value;
+  const container = document.getElementById('pipelineCardsContainer');
+  if (container) container.innerHTML = renderPipelineTable();
+}
+
 function renderPipelineTable() {
-  const sorted = [...STATE.deals].sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated));
+  let filtered = [...STATE.deals];
+  const term = PIPELINE_FILTER.search.trim().toLowerCase();
+  if (term) {
+    filtered = filtered.filter(d =>
+      (d.parcelName || '').toLowerCase().includes(term) ||
+      (d.location || '').toLowerCase().includes(term) ||
+      (d.surveyNumber || '').toLowerCase().includes(term)
+    );
+  }
+  if (PIPELINE_FILTER.category !== 'All') {
+    filtered = filtered.filter(d => (d.leadCategory || 'Warm') === PIPELINE_FILTER.category);
+  }
+  if (PIPELINE_FILTER.status !== 'All') {
+    filtered = filtered.filter(d => getDealStatus(d).label === PIPELINE_FILTER.status);
+  }
+  const sorted = filtered.sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated));
   if (sorted.length === 0) {
-    return `<div class="empty-state"><div class="icon">📋</div>No parcels in pipeline yet.</div>`;
+    const msg = STATE.deals.length === 0 ? 'No parcels in pipeline yet.' : 'No parcels match the current filter.';
+    return `<div class="empty-state"><div class="icon">📋</div>${msg}</div>`;
   }
   return sorted.map(d => {
     const status = getDealStatus(d);
+    const floors = checkFinancialFloors(d);
     const nextActionOverdue = d.nextActionDate && new Date(d.nextActionDate) < new Date() && !['Signed', 'Dropped'].includes(d.stage);
+    const floorDetailRows = ['irr', 'pat', 'profitPerSft', 'completionYears'].map(key => {
+      const f = floors.floors[key];
+      const labels = { irr: 'IRR', pat: 'PAT', profitPerSft: 'Profit/sft', completionYears: 'Completion (yrs)' };
+      const comparator = key === 'completionYears' ? '\u2264' : '\u2265';
+      const valDisplay = (f.value === undefined || isNaN(f.value)) ? '\u2014' : f.value;
+      const icon = f.pass ? '\u2705' : (valDisplay === '\u2014' ? '\u2796' : '\u274c');
+      return `<span style="margin-right:14px;font-size:11.5px;color:var(--grey);">${icon} ${labels[key]}: ${valDisplay} (${comparator}${f.floor})</span>`;
+    }).join('');
     return `
     <div class="deal-card">
       <div class="deal-card-top">
         <div>
           <div class="deal-card-title">${escapeHTML(d.parcelName)}</div>
-          <div class="deal-card-sub">${escapeHTML(d.location || '\u2014')}${d.surveyNumber ? ' &middot; Survey No. ' + escapeHTML(d.surveyNumber) : ''}</div>
+          <div class="deal-card-sub">${escapeHTML(d.location || '\u2014')}${d.surveyNumber ? ' &middot; Survey No. ' + escapeHTML(d.surveyNumber) : ''}${d.dealStructure ? ' &middot; ' + escapeHTML(d.dealStructure) : ''}${d.owner ? ' &middot; Owner: ' + escapeHTML(d.owner) : ''}</div>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
           ${categoryBadge(d.leadCategory)}
@@ -673,6 +996,10 @@ function renderPipelineTable() {
         <div><span class="dcg-label">Expected GDV</span><span class="dcg-val">${d.expectedGDV ? '\u20b9' + d.expectedGDV + ' Cr' : '\u2014'}</span></div>
         <div><span class="dcg-label">Next Action</span><span class="dcg-val">${escapeHTML(d.nextAction || '\u2014')}</span></div>
         <div><span class="dcg-label">Next Action Date</span><span class="dcg-val" style="${nextActionOverdue ? 'color:var(--red-deep);font-weight:700;' : ''}">${d.nextActionDate ? formatDateShort(d.nextActionDate) : '\u2014'}${nextActionOverdue ? ' (Overdue)' : ''}</span></div>
+      </div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border-soft);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+        <div>${floorDetailRows}</div>
+        <div style="display:flex;gap:6px;">${floorVerdictBadge(floors.verdict)}${legalGateBadge(d.legalGateStatus)}</div>
       </div>
       <button class="timeline-link" onclick='openTimelineModal("${d.id}")'>View Activity Timeline \u2192</button>
     </div>`;
