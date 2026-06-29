@@ -313,7 +313,13 @@ function setupDealModal() {
       sourcePhone: document.getElementById('deal_sourcePhone').value,
       stage, phase,
       leadCategory: document.getElementById('deal_leadCategory').value,
+      dealStructure: document.getElementById('deal_dealStructure').value,
       expectedGDV: document.getElementById('deal_expectedGDV').value,
+      irrPct: document.getElementById('deal_irrPct').value,
+      patPct: document.getElementById('deal_patPct').value,
+      profitPerSft: document.getElementById('deal_profitPerSft').value,
+      completionYears: document.getElementById('deal_completionYears').value,
+      legalGateStatus: document.getElementById('deal_legalGateStatus').value,
       landownerAsk: document.getElementById('deal_landownerAsk').value,
       currentOffer: document.getElementById('deal_currentOffer').value,
       nextAction: document.getElementById('deal_nextAction').value,
@@ -369,7 +375,13 @@ function openDealModal(deal) {
     document.getElementById('deal_sourcePhone').value = deal.sourcePhone || '';
     document.getElementById('deal_stage').value = deal.stage || 'Lead';
     document.getElementById('deal_leadCategory').value = deal.leadCategory || 'Warm';
+    document.getElementById('deal_dealStructure').value = deal.dealStructure || 'Outright Purchase';
     document.getElementById('deal_expectedGDV').value = deal.expectedGDV || '';
+    document.getElementById('deal_irrPct').value = deal.irrPct || '';
+    document.getElementById('deal_patPct').value = deal.patPct || '';
+    document.getElementById('deal_profitPerSft').value = deal.profitPerSft || '';
+    document.getElementById('deal_completionYears').value = deal.completionYears || '';
+    document.getElementById('deal_legalGateStatus').value = deal.legalGateStatus || 'Not Started';
     document.getElementById('deal_landownerAsk').value = deal.landownerAsk || '';
     document.getElementById('deal_currentOffer').value = deal.currentOffer || '';
     document.getElementById('deal_nextAction').value = deal.nextAction || '';
@@ -389,7 +401,7 @@ function renderPipeline() {
   const body = document.getElementById('pipelineTableBody');
   const sorted = [...STATE.deals].sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated));
   if (sorted.length === 0) {
-    body.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--ink-muted);">No parcels in pipeline yet. Click "+ Add New Parcel" to start.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="10" style="text-align:center;color:var(--ink-muted);">No parcels in pipeline yet. Click "+ Add New Parcel" to start.</td></tr>`;
     return;
   }
   body.innerHTML = sorted.map(d => `
@@ -399,6 +411,7 @@ function renderPipeline() {
       <td>${escapeHTML(d.source || '—')}</td>
       <td>${stageBadge(d.stage)}</td>
       <td>${categoryBadge(d.leadCategory)}</td>
+      <td>${legalGateBadge(d.legalGateStatus)}</td>
       <td>${d.expectedGDV ? '₹' + d.expectedGDV + ' Cr' : '—'}</td>
       <td>${escapeHTML(d.nextAction || '—')}</td>
       <td>${d.nextActionDate ? formatDateShort(d.nextActionDate) : '—'}</td>
@@ -426,6 +439,19 @@ function categoryBadge(category) {
   };
   const c = map[category] || map['Warm'];
   return `<span class="badge ${c.cls}">${c.dot} ${escapeHTML(category || 'Warm')}</span>`;
+}
+
+// Legal/title gate status badge — AOP: "Zero title risk - Atul (Legal)
+// clears every deal before MOU." Matches ceo-dashboard.js's version.
+function legalGateBadge(status) {
+  const map = {
+    'Not Started': 'badge-sourcing',
+    'In Progress': 'badge-evaluation',
+    'Gate 2 Cleared': 'badge-closed-signed',
+    'Flagged Issue': 'badge-closed-dropped'
+  };
+  const label = status || 'Not Started';
+  return `<span class="badge ${map[label] || 'badge-sourcing'}">${escapeHTML(label)}</span>`;
 }
 
 /* ---------------- TARGETS ---------------- */
