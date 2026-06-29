@@ -9,7 +9,7 @@
    ============================================================ */
 
 // ⚠️ Use the SAME Apps Script Web App URL as the BD entry tool.
-const API_URL = "https://script.google.com/macros/s/AKfycbwnusKhEVckQbtT4BR_Txm15UjH4w1oaUylIuY6uvJK9kYpU0RdHVm6aa7IhMyg0U0_/exec";
+const API_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
 
 const AUTO_REFRESH_MINUTES = 10;
 
@@ -264,13 +264,19 @@ function renderStalledDealsHTML() {
  * Activity counts (visits/leads) ARE still scoped to the quarter itself,
  * since those are naturally period-bound (visits done that quarter).
  */
-function computeConversionRates(start, end) {
-  const logsInRange = STATE.dailyLogs.filter(d => d.date && new Date(d.date) >= start && new Date(d.date) <= end);
+function computeConversionRates(startCal, endCal) {
+  const logsInRange = STATE.dailyLogs.filter(d => {
+    const cal = extractDateOnly(d.date);
+    return cal && cal >= startCal && cal <= endCal;
+  });
   const visits = logsInRange.reduce((s, d) => s + (Number(d.siteVisits) || 0), 0);
   const leads = logsInRange.reduce((s, d) => s + (Number(d.newLeads) || 0), 0);
 
-  // Cumulative as-of-end-of-window: every stage transition that happened by `end`
-  const historyToDate = STATE.stageHistory.filter(h => h.changedAt && new Date(h.changedAt) <= end);
+  // Cumulative as-of-end-of-window: every stage transition that happened by `endCal`
+  const historyToDate = STATE.stageHistory.filter(h => {
+    const cal = extractDateOnly(h.changedAt);
+    return cal && cal <= endCal;
+  });
 
   const enteredFunnel = new Set(
     historyToDate.filter(h => h.fromStage === 'None').map(h => h.dealId)
@@ -311,7 +317,7 @@ function getLastNQuarters(n) {
 function renderConversionAnalytics() {
   const quarters = getLastNQuarters(4);
   const rates = quarters.map(q => {
-    const [start, end] = quarterBounds(q);
+    const [start, end] = quarterBoundsCalendar(q);
     return { quarter: q, ...computeConversionRates(start, end) };
   });
   const latest = rates[rates.length - 1];
@@ -532,6 +538,26 @@ function stageBadge(stage) {
 
 /* ---------------- QUARTER / DATE HELPERS (same logic as entry tool) ---------------- */
 
+// ---- TIMEZONE-SAFE DATE HANDLING ----
+// Dates stored via the entry tool's <input type="date"> round-trip through
+// Apps Script/Sheets and come back as full ISO timestamps with a fixed
+// "T18:30:00.000Z" time-of-day suffix (an artifact of the Sheet's IST
+// timezone setting) — e.g. "2026-04-30T18:30:00.000Z". Critically, the
+// DATE PORTION of that string already matches the calendar date the user
+// actually picked (confirmed against real production data) — only the
+// time-of-day component is a meaningless artifact. The actual bug is
+// comparing these as full Date-object INSTANTS (which drags that 18:30
+// artifact into the comparison) against quarter boundaries built at local
+// midnight — that comparison can misclassify entries near a boundary.
+// Fix: extract just the YYYY-MM-DD date portion and compare as strings,
+// ignoring time-of-day entirely. Do NOT apply any UTC<->IST shift here —
+// the date portion is already correct as stored.
+function extractDateOnly(dateStr) {
+  if (!dateStr) return null;
+  const m = String(dateStr).match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : null;
+}
+
 function getCurrentQuarter() {
   const d = new Date();
   const m = d.getMonth();
@@ -545,47 +571,73 @@ function getCurrentQuarter() {
   return `Q${q} ${fyLabel}`;
 }
 
-function quarterBounds(qLabel) {
+// Returns quarter boundaries as YYYY-MM-DD calendar-date strings (not Date
+// objects), for direct string comparison against extractDateOnly() output.
+function quarterBoundsCalendar(qLabel) {
   const m = qLabel.match(/Q(\d) FY(\d\d)-(\d\d)/);
-  if (!m) return [new Date(0), new Date()];
+  if (!m) return ['0000-00-00', '9999-99-99'];
   const qNum = Number(m[1]);
   const fyStartYear = 2000 + Number(m[2]);
   let year = fyStartYear;
-  let startMonth;
+  let startMonth; // 0-indexed
   if (qNum === 1) startMonth = 3;
   else if (qNum === 2) startMonth = 6;
   else if (qNum === 3) startMonth = 9;
   else { startMonth = 0; year = fyStartYear + 1; }
-  const start = new Date(year, startMonth, 1);
-  const end = new Date(year, startMonth + 3, 0, 23, 59, 59);
+  const endMonth = startMonth + 2; // inclusive, 0-indexed
+  const endYear = year + Math.floor(endMonth / 12);
+  const endMonthNorm = endMonth % 12;
+  const lastDay = new Date(endYear, endMonthNorm + 1, 0).getDate(); // local-time day count is fine here, only used for day-of-month, not as a timestamp
+  const start = `${year}-${String(startMonth + 1).padStart(2, '0')}-01`;
+  const end = `${endYear}-${String(endMonthNorm + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
   return [start, end];
 }
 
+// Kept for any external callers expecting Date objects — now derived from
+// the calendar-string boundaries so both representations stay consistent.
+function quarterBounds(qLabel) {
+  const [startStr, endStr] = quarterBoundsCalendar(qLabel);
+  return [new Date(startStr + 'T00:00:00'), new Date(endStr + 'T23:59:59')];
+}
+
 function sumProposalsInQuarter(qLabel) {
-  const [start, end] = quarterBounds(qLabel);
+  const [start, end] = quarterBoundsCalendar(qLabel);
   return STATE.dailyLogs
-    .filter(d => d.date && new Date(d.date) >= start && new Date(d.date) <= end)
+    .filter(d => {
+      const cal = extractDateOnly(d.date);
+      return cal && cal >= start && cal <= end;
+    })
     .reduce((s, d) => s + (Number(d.proposalsPresented) || 0), 0);
 }
 
 function sumAcresSignedInQuarter(qLabel) {
-  const [start, end] = quarterBounds(qLabel);
+  const [start, end] = quarterBoundsCalendar(qLabel);
   return STATE.deals
-    .filter(d => d.stage === 'Signed' && d.lastUpdated && new Date(d.lastUpdated) >= start && new Date(d.lastUpdated) <= end)
+    .filter(d => {
+      if (d.stage !== 'Signed') return false;
+      const cal = extractDateOnly(d.lastUpdated);
+      return cal && cal >= start && cal <= end;
+    })
     .reduce((s, d) => s + (Number(d.areaAcres) || 0), 0);
 }
 
 function countDealsSignedInQuarter(qLabel) {
-  const [start, end] = quarterBounds(qLabel);
+  const [start, end] = quarterBoundsCalendar(qLabel);
   return STATE.deals
-    .filter(d => d.stage === 'Signed' && d.lastUpdated && new Date(d.lastUpdated) >= start && new Date(d.lastUpdated) <= end)
+    .filter(d => {
+      if (d.stage !== 'Signed') return false;
+      const cal = extractDateOnly(d.lastUpdated);
+      return cal && cal >= start && cal <= end;
+    })
     .length;
 }
 
 function isSameMonth(dateStr, ref) {
-  if (!dateStr) return false;
-  const d = new Date(dateStr);
-  return d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
+  const cal = extractDateOnly(dateStr);
+  if (!cal) return false;
+  const refY = ref.getFullYear();
+  const refM = String(ref.getMonth() + 1).padStart(2, '0');
+  return cal.startsWith(`${refY}-${refM}`);
 }
 
 function formatDateShort(dateStr) {
