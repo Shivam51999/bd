@@ -20,6 +20,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('todayBadge').textContent = formatDateLong(new Date());
   loadData();
   setInterval(loadData, AUTO_REFRESH_MINUTES * 60 * 1000);
+  const timelineModal = document.getElementById('timelineModal');
+  if (timelineModal) {
+    timelineModal.addEventListener('click', (e) => {
+      if (e.target.id === 'timelineModal') closeTimelineModal();
+    });
+  }
 });
 
 async function loadData() {
@@ -120,20 +126,17 @@ function render() {
     <div class="section-label"><span>AOP Target Progress</span><div class="line"></div></div>
     <div class="card">
       <div class="quarter-tabs" id="quarterTabs"></div>
-      ${progressRow('Proposals Presented', qProposalsActual, qTarget.targetProposals || 2)}
-      ${progressRow('Acres Signed', qAcresActual, qTarget.targetAcres || 5, true)}
-      ${progressRow('Deals Signed', qDealsSignedActual, qTarget.targetDealsSigned || 1)}
+      ${progressRowWithStatus('Proposals Presented', qProposalsActual, qTarget.targetProposals || 2, false, SELECTED_QUARTER)}
+      ${progressRowWithStatus('Acres Signed', qAcresActual, qTarget.targetAcres || 5, true, SELECTED_QUARTER)}
+      ${progressRowWithStatus('Deals Signed', qDealsSignedActual, qTarget.targetDealsSigned || 1, false, SELECTED_QUARTER)}
     </div>
 
     <div class="section-label"><span>AOP Lead Conversion Funnel — ${SELECTED_QUARTER}</span><div class="line"></div></div>
     <div class="card">
       <p style="font-size:12px;color:var(--grey-soft);margin-bottom:16px;">
-        Per the AOP's funnel model (100 Sourcing \u2192 30 BD Head Filter \u2192 10 BD Head Refinement \u2192 1 Signed). Tracked manually, separately from the Deal Pipeline above \u2014 actuals here are entered by hand, not derived from Pipeline deal-stages.
+        Per the AOP's funnel model (Sourcing \u2192 BD Head Filter \u2192 BD Head Refinement \u2192 Signed). Shows the CONVERSION RATIO between stages \u2014 not targets \u2014 for the selected quarter.
       </p>
-      ${progressRow('Sourcing (Stage 1)', qTarget.actualLeadsSourced || 0, qTarget.targetLeadsSourced || 100)}
-      ${progressRow('BD Head Filter (Stage 2)', qTarget.actualLeadsQualified || 0, qTarget.targetLeadsQualified || 30)}
-      ${progressRow('BD Head Refinement (Stage 3)', qTarget.actualProspects || 0, qTarget.targetProspects || 10)}
-      ${progressRow('SSS Meeting / Signed (Stage 4)', qDealsSignedActual, qTarget.targetDealsSigned || 1)}
+      ${renderFunnelConversionRatios(qTarget, qDealsSignedActual)}
     </div>
 
     <div class="section-label"><span>Set AOP Targets</span><div class="line"></div></div>
@@ -144,21 +147,21 @@ function render() {
       ${renderTargetEditTable()}
     </div>
 
-    <div class="card">
-      <div class="card-title">Set Lead Conversion Funnel</div>
-      <p style="font-size:12.5px;color:var(--grey);margin-bottom:16px;">
-        Per the AOP's funnel model (Sourcing → BD Head Filter → BD Head Refinement → Signed). Unlike the targets above, actuals for these three stages are entered manually here too — they are not derived from Daily Log or Deal Pipeline data.
-      </p>
-      ${renderFunnelTargetEditTable()}
-    </div>
-
     <div class="section-label"><span>Land Deal Pipeline</span><div class="line"></div></div>
     <div class="card">
       <div class="card-title">All Parcels<span class="as-of">${STATE.deals.length} total</span></div>
       ${renderPipelineTable()}
     </div>
 
-    <div class="footer-note">Auto-refreshes every ${AUTO_REFRESH_MINUTES} minutes · Summary view — daily notes and contact details are not shown here</div>
+    <div class="section-label"><span>Source-Wise Performance</span><div class="line"></div></div>
+    <div class="card">
+      <p style="font-size:12px;color:var(--grey-soft);margin-bottom:16px;">
+        How each lead source (Broker, Reference, Landowner Direct, Cold Outreach, Other) is actually converting \u2014 not just how many leads it brings in.
+      </p>
+      ${renderSourcePerformanceTable()}
+    </div>
+
+    <div class="footer-note">Auto-refreshes every ${AUTO_REFRESH_MINUTES} minutes · Daily notes and free-text remarks stay in the BD entry tool \u2014 everything else shown here is the full record</div>
   `;
   document.getElementById('dashboardRoot').innerHTML = html;
   renderQuarterTabs();
@@ -242,10 +245,52 @@ function renderFunnelHTML() {
 
 const NEGOTIATION_STAGES = ['Feasibility', 'Negotiation', 'Term Sheet', 'Due Diligence'];
 
+// Per-TARGET on-track/at-risk status (distinct from per-DEAL status above).
+// Compares how much of the quarter has elapsed against how much of the
+// target has been achieved. A deal can be individually "on track" while
+// the quarter's overall target is still "at risk" if too few deals exist,
+// and vice versa — these are two different questions.
+function getTargetPaceStatus(qLabel, achievedPct) {
+  const [startCal, endCal] = quarterBoundsCalendar(qLabel);
+  const start = new Date(startCal + 'T00:00:00');
+  const end = new Date(endCal + 'T23:59:59');
+  const today = new Date();
+  const totalDays = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
+  let elapsedDays = Math.round((today - start) / (1000 * 60 * 60 * 24)) + 1;
+  elapsedDays = Math.max(0, Math.min(totalDays, elapsedDays));
+  const elapsedPct = (elapsedDays / totalDays) * 100;
+
+  const gap = elapsedPct - achievedPct;
+  if (gap <= 15) return { label: 'On Track', cls: 'badge-closed-signed' };
+  if (gap <= 30) return { label: 'At Risk', cls: 'badge-evaluation' };
+  return { label: 'Critical', cls: 'badge-closed-dropped' };
+}
+
 function getLastChangeForDeal(dealId) {
   const events = STATE.stageHistory.filter(h => h.dealId === dealId);
   if (events.length === 0) return null;
   return events.reduce((latest, e) => new Date(e.changedAt) > new Date(latest.changedAt) ? e : latest, events[0]);
+}
+
+// General per-deal on-track/at-risk status, for EVERY active deal (not just
+// stalled ones). Reuses the same 30/60/90-day thresholds as stalled-deal
+// detection, just relabeled into a status any row can show:
+//   < 30 days since last stage movement -> On Track
+//   30-59 days                          -> At Risk
+//   60-89 days                          -> Stalled
+//   90+ days                            -> Critical
+// Closed deals (Signed/Dropped) always read as Closed, not a risk status.
+function getDealStatus(deal) {
+  if (deal.stage === 'Signed') return { label: 'Signed', cls: 'badge-closed-signed', daysInStage: null };
+  if (deal.stage === 'Dropped') return { label: 'Dropped', cls: 'badge-closed-dropped', daysInStage: null };
+  const lastChange = getLastChangeForDeal(deal.id);
+  const sinceDate = lastChange ? new Date(lastChange.changedAt) : (deal.dateAdded ? new Date(deal.dateAdded) : null);
+  if (!sinceDate || isNaN(sinceDate)) return { label: 'Unknown', cls: 'badge-sourcing', daysInStage: null };
+  const daysInStage = Math.floor((new Date() - sinceDate) / (1000 * 60 * 60 * 24));
+  if (daysInStage >= 90) return { label: 'Critical', cls: 'badge-closed-dropped', daysInStage };
+  if (daysInStage >= 60) return { label: 'Stalled', cls: 'badge-negotiation', daysInStage };
+  if (daysInStage >= 30) return { label: 'At Risk', cls: 'badge-evaluation', daysInStage };
+  return { label: 'On Track', cls: 'badge-closed-signed', daysInStage };
 }
 
 function getStalledDeals() {
@@ -425,11 +470,96 @@ function renderConversionAnalytics() {
   `;
 }
 
+// Groups all Pipeline deals by SOURCE TYPE (Broker/Reference/Landowner
+// Direct/Cold Outreach/Other) and computes how each source actually
+// performs: total leads brought in, how many converted to Signed, the
+// resulting conversion rate, and acres signed — so volume isn't mistaken
+// for quality (a source with many leads but few signings should look
+// worse here than one with fewer leads but a higher hit rate).
+function renderSourcePerformanceTable() {
+  if (STATE.deals.length === 0) {
+    return `<div class="empty-state" style="padding:24px;"><div class="icon">\ud83d\udcca</div>No deals in pipeline yet to analyze.</div>`;
+  }
+  const bySource = {};
+  STATE.deals.forEach(d => {
+    const key = d.source || 'Unspecified';
+    if (!bySource[key]) bySource[key] = { total: 0, signed: 0, dropped: 0, acresSigned: 0 };
+    bySource[key].total++;
+    if (d.stage === 'Signed') {
+      bySource[key].signed++;
+      bySource[key].acresSigned += Number(d.areaAcres) || 0;
+    }
+    if (d.stage === 'Dropped') bySource[key].dropped++;
+  });
+
+  const rows = Object.entries(bySource)
+    .sort((a, b) => b[1].total - a[1].total)
+    .map(([source, s]) => {
+      const conversionPct = s.total > 0 ? Math.round((s.signed / s.total) * 100) : 0;
+      return `<tr>
+        <td><b>${escapeHTML(source)}</b></td>
+        <td>${s.total}</td>
+        <td>${s.signed}</td>
+        <td>${s.dropped}</td>
+        <td style="font-weight:700;">${conversionPct}%</td>
+        <td>${s.acresSigned.toFixed(1)}</td>
+      </tr>`;
+    }).join('');
+
+  return `<div class="table-wrap"><table>
+    <thead><tr><th>Source</th><th>Total Leads</th><th>Signed</th><th>Dropped</th><th>Conversion Rate</th><th>Acres Signed</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
 function renderAnalyticsSection() {
   if (STATE.deals.length === 0 && STATE.dailyLogs.length === 0) {
     return `<div class="card"><div class="empty-state"><div class="icon">\ud83d\udcca</div>Not enough data yet to compute conversion analytics.</div></div>`;
   }
   return renderConversionAnalytics();
+}
+
+// Pure conversion-ratio view of the AOP funnel — no targets, no editing.
+// Computes stage-to-stage percentages from whatever actuals exist for the
+// selected quarter (actuals for stages 1-3 are still entered/stored the
+// same way as before; only the editable UI for them was removed here).
+function renderFunnelConversionRatios(qTarget, signedActual) {
+  const sourced = Number(qTarget.actualLeadsSourced) || 0;
+  const qualified = Number(qTarget.actualLeadsQualified) || 0;
+  const prospects = Number(qTarget.actualProspects) || 0;
+  const signed = Number(signedActual) || 0;
+
+  const ratio = (num, den) => den > 0 ? Math.round((num / den) * 100) : null;
+  const r1 = ratio(qualified, sourced);   // Sourcing -> Filter
+  const r2 = ratio(prospects, qualified); // Filter -> Refinement
+  const r3 = ratio(signed, prospects);    // Refinement -> Signed
+
+  const fmtRatio = r => r === null ? '\u2014' : r + '%';
+
+  const stages = [
+    { count: sourced, label: 'Sourced' },
+    { count: qualified, label: 'BD Head Filter' },
+    { count: prospects, label: 'BD Head Refinement' },
+    { count: signed, label: 'Signed' },
+  ];
+  const stageBlocks = stages.map(s => `
+    <div style="text-align:center;flex:1;">
+      <div style="font-size:24px;font-weight:700;font-family:Georgia,serif;color:var(--ink);">${s.count}</div>
+      <div style="font-size:10.5px;color:var(--grey);text-transform:uppercase;letter-spacing:0.4px;margin-top:2px;">${s.label}</div>
+    </div>`).join('<div style="display:flex;align-items:center;color:var(--grey-soft);font-size:13px;font-weight:700;padding:0 6px;">\u2192</div>');
+
+  return `
+    <div style="display:flex;align-items:center;margin-bottom:20px;">${stageBlocks}</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Stage Transition</th><th>Conversion Ratio</th></tr></thead>
+      <tbody>
+        <tr><td>Sourced \u2192 BD Head Filter</td><td style="font-size:16px;font-weight:700;">${fmtRatio(r1)}</td></tr>
+        <tr><td>BD Head Filter \u2192 BD Head Refinement</td><td style="font-size:16px;font-weight:700;">${fmtRatio(r2)}</td></tr>
+        <tr><td>BD Head Refinement \u2192 Signed</td><td style="font-size:16px;font-weight:700;">${fmtRatio(r3)}</td></tr>
+      </tbody>
+    </table></div>
+    <p style="font-size:11px;color:var(--grey-soft);margin-top:12px;">Ratios are null (\u2014) when the prior stage has zero recorded leads for this quarter.</p>
+  `;
 }
 
 function progressRow(label, actual, target, isDecimal) {
@@ -439,6 +569,28 @@ function progressRow(label, actual, target, isDecimal) {
   return `
     <div class="progress-row">
       <div class="pr-label"><span class="name">${label}</span><span class="val">${a} / ${target}</span></div>
+      <div class="progress-bar-bg"><div class="progress-bar-fill ${cls}" style="width:${pct}%"></div></div>
+    </div>`;
+}
+
+// Same as progressRow, plus an On Track / At Risk / Critical badge based on
+// whether progress toward TARGET is keeping pace with how much of the
+// QUARTER has elapsed so far. See getTargetPaceStatus for the methodology.
+function progressRowWithStatus(label, actual, target, isDecimal, qLabel) {
+  const achievedPct = target > 0 ? Math.min(100, (actual / target) * 100) : 0;
+  const status = getTargetPaceStatus(qLabel, achievedPct);
+  const a = isDecimal ? Number(actual).toFixed(1) : actual;
+  const pct = achievedPct;
+  const cls = pct >= 100 ? '' : pct >= 50 ? 'gold' : 'amber';
+  return `
+    <div class="progress-row">
+      <div class="pr-label">
+        <span class="name">${label}</span>
+        <span style="display:flex;align-items:center;gap:8px;">
+          <span class="val">${a} / ${target}</span>
+          <span class="badge ${status.cls}">${status.label}</span>
+        </span>
+      </div>
       <div class="progress-bar-bg"><div class="progress-bar-fill ${cls}" style="width:${pct}%"></div></div>
     </div>`;
 }
@@ -465,55 +617,6 @@ function renderTargetEditTable() {
     <thead><tr><th>Quarter</th><th>Target Proposals</th><th>Target Acres</th><th>Target Deals Signed</th><th></th></tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
-}
-
-function _editInput(q, field, value, width) {
-  return `<input type="number" min="0" value="${value || 0}" data-q="${q}" data-field="${field}" class="target-edit-input-funnel" style="width:${width || 64}px;padding:6px 7px;border:1px solid var(--border);border-radius:6px;font-size:12.5px;">`;
-}
-
-function renderFunnelTargetEditTable() {
-  const quarters = ['Q1 FY26-27', 'Q2 FY26-27', 'Q3 FY26-27', 'Q4 FY26-27'];
-  const rows = quarters.map(q => {
-    const t = STATE.targets.find(x => x.periodType === 'quarterly' && x.periodLabel === q) || {};
-    return `<tr>
-      <td><b>${q}</b></td>
-      <td>${_editInput(q, 'targetLeadsSourced', t.targetLeadsSourced)}</td>
-      <td>${_editInput(q, 'actualLeadsSourced', t.actualLeadsSourced)}</td>
-      <td>${_editInput(q, 'targetLeadsQualified', t.targetLeadsQualified)}</td>
-      <td>${_editInput(q, 'actualLeadsQualified', t.actualLeadsQualified)}</td>
-      <td>${_editInput(q, 'targetProspects', t.targetProspects)}</td>
-      <td>${_editInput(q, 'actualProspects', t.actualProspects)}</td>
-      <td><button class="quarter-tab" style="background:var(--ink);color:white;border-color:var(--ink);" onclick="saveFunnelTarget('${q}')">Save</button></td>
-    </tr>`;
-  }).join('');
-  return `<div class="table-wrap"><table>
-    <thead><tr>
-      <th>Quarter</th>
-      <th>Target Sourced</th><th>Actual Sourced</th>
-      <th>Target Qualified</th><th>Actual Qualified</th>
-      <th>Target Prospects</th><th>Actual Prospects</th>
-      <th></th>
-    </tr></thead>
-    <tbody>${rows}</tbody>
-  </table></div>`;
-}
-
-async function saveFunnelTarget(quarterLabel) {
-  if (API_URL.includes('PASTE_YOUR')) { showCeoToast('API_URL is not configured yet.', true); return; }
-  const inputs = document.querySelectorAll(`.target-edit-input-funnel[data-q="${quarterLabel}"]`);
-  const payload = { periodType: 'quarterly', periodLabel: quarterLabel };
-  inputs.forEach(inp => payload[inp.dataset.field] = Number(inp.value) || 0);
-  try {
-    const url = `${API_URL}?action=setTarget&payload=${encodeURIComponent(JSON.stringify(payload))}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('Network error: ' + res.status);
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error || 'Unknown error');
-    showCeoToast(`${quarterLabel} funnel targets saved.`);
-    await loadData();
-  } catch (err) {
-    showCeoToast('Failed to save funnel targets: ' + err.message, true);
-  }
 }
 
 async function saveTarget(quarterLabel) {
@@ -547,21 +650,73 @@ function renderPipelineTable() {
   if (sorted.length === 0) {
     return `<div class="empty-state"><div class="icon">📋</div>No parcels in pipeline yet.</div>`;
   }
-  return `<div class="table-wrap"><table>
-    <thead><tr><th>Parcel / Location</th><th>Area (acres)</th><th>Source</th><th>Stage</th><th>Expected GDV</th><th>Next Action</th><th>Next Action Date</th></tr></thead>
-    <tbody>
-      ${sorted.map(d => `
-        <tr>
-          <td><b>${escapeHTML(d.parcelName)}</b><br><span style="color:var(--ink-muted);font-size:12px;">${escapeHTML(d.location || '')}</span></td>
-          <td>${d.areaAcres || '—'}</td>
-          <td>${escapeHTML(d.source || '—')}</td>
-          <td>${stageBadge(d.stage)}</td>
-          <td>${d.expectedGDV ? '₹' + d.expectedGDV + ' Cr' : '—'}</td>
-          <td>${escapeHTML(d.nextAction || '—')}</td>
-          <td>${d.nextActionDate ? formatDateShort(d.nextActionDate) : '—'}</td>
-        </tr>`).join('')}
-    </tbody>
-  </table></div>`;
+  return sorted.map(d => {
+    const status = getDealStatus(d);
+    const nextActionOverdue = d.nextActionDate && new Date(d.nextActionDate) < new Date() && !['Signed', 'Dropped'].includes(d.stage);
+    return `
+    <div class="deal-card">
+      <div class="deal-card-top">
+        <div>
+          <div class="deal-card-title">${escapeHTML(d.parcelName)}</div>
+          <div class="deal-card-sub">${escapeHTML(d.location || '\u2014')}${d.surveyNumber ? ' &middot; Survey No. ' + escapeHTML(d.surveyNumber) : ''}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+          ${categoryBadge(d.leadCategory)}
+          ${stageBadge(d.stage)}
+          <span class="badge ${status.cls}">${status.label}${status.daysInStage !== null ? ' &middot; ' + status.daysInStage + 'd' : ''}</span>
+        </div>
+      </div>
+      <div class="deal-card-grid">
+        <div><span class="dcg-label">Source</span><span class="dcg-val">${escapeHTML(d.source || '\u2014')}${d.sourceDetail ? ' \u2014 ' + escapeHTML(d.sourceDetail) : ''}</span></div>
+        <div><span class="dcg-label">Source Phone</span><span class="dcg-val">${escapeHTML(d.sourcePhone || '\u2014')}</span></div>
+        <div><span class="dcg-label">Area</span><span class="dcg-val">${d.areaAcres || '\u2014'} acres</span></div>
+        <div><span class="dcg-label">Expected GDV</span><span class="dcg-val">${d.expectedGDV ? '\u20b9' + d.expectedGDV + ' Cr' : '\u2014'}</span></div>
+        <div><span class="dcg-label">Next Action</span><span class="dcg-val">${escapeHTML(d.nextAction || '\u2014')}</span></div>
+        <div><span class="dcg-label">Next Action Date</span><span class="dcg-val" style="${nextActionOverdue ? 'color:var(--red-deep);font-weight:700;' : ''}">${d.nextActionDate ? formatDateShort(d.nextActionDate) : '\u2014'}${nextActionOverdue ? ' (Overdue)' : ''}</span></div>
+      </div>
+      <button class="timeline-link" onclick='openTimelineModal("${d.id}")'>View Activity Timeline \u2192</button>
+    </div>`;
+  }).join('');
+}
+
+// Per-deal activity timeline, built from StageHistory — answers "what's
+// happened on this lead since it was first sourced." Read-only.
+function getDealTimeline(dealId) {
+  return STATE.stageHistory
+    .filter(h => h.dealId === dealId)
+    .sort((a, b) => new Date(a.changedAt) - new Date(b.changedAt));
+}
+
+function openTimelineModal(dealId) {
+  const deal = STATE.deals.find(d => d.id === dealId);
+  if (!deal) return;
+  const timeline = getDealTimeline(dealId);
+  const modal = document.getElementById('timelineModal');
+  const body = document.getElementById('timelineModalBody');
+  const title = document.getElementById('timelineModalTitle');
+  if (!modal || !body || !title) return;
+
+  title.textContent = deal.parcelName + ' \u2014 Activity Timeline';
+
+  if (timeline.length === 0) {
+    body.innerHTML = `<div class="empty-state" style="padding:24px;"><div class="icon">\ud83d\udcc5</div>No timeline events recorded yet for this parcel.</div>`;
+  } else {
+    body.innerHTML = `<div class="timeline-list">${timeline.map((h, i) => `
+      <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-content">
+          <div class="timeline-date">${formatDateShort(h.changedAt)}</div>
+          <div class="timeline-transition">${h.fromStage === 'None' ? 'Sourced into pipeline as' : escapeHTML(h.fromStage) + ' \u2192'} <b>${escapeHTML(h.toStage)}</b></div>
+        </div>
+      </div>`).join('')}
+    </div>`;
+  }
+  modal.classList.add('active');
+}
+
+function closeTimelineModal() {
+  const modal = document.getElementById('timelineModal');
+  if (modal) modal.classList.remove('active');
 }
 
 function stageBadge(stage) {
@@ -572,6 +727,17 @@ function stageBadge(stage) {
     'Signed': 'badge-closed-signed', 'Dropped': 'badge-closed-dropped'
   };
   return `<span class="badge ${map[stage] || 'badge-sourcing'}">${escapeHTML(stage)}</span>`;
+}
+
+// Hot/Warm/Cold lead category, same mapping as the entry tool (app.js).
+function categoryBadge(category) {
+  const map = {
+    'Hot': { cls: 'badge-closed-signed', dot: '🟢' },
+    'Warm': { cls: 'badge-evaluation', dot: '🟡' },
+    'Cold': { cls: 'badge-closed-dropped', dot: '🔴' },
+  };
+  const c = map[category] || map['Warm'];
+  return `<span class="badge ${c.cls}">${c.dot} ${escapeHTML(category || 'Warm')}</span>`;
 }
 
 /* ---------------- QUARTER / DATE HELPERS (same logic as entry tool) ---------------- */
