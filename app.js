@@ -604,42 +604,78 @@ function getCurrentQuarter() {
   return `Q${q} ${fyLabel}`;
 }
 
-function quarterBounds(qLabel) {
-  // qLabel like "Q1 FY26-27" -> returns [startDate, endDate]
+// ---- TIMEZONE-SAFE DATE HANDLING ----
+// See identical comment in ceo-dashboard.js. The date PORTION of stored
+// ISO timestamps already matches the intended calendar date (confirmed
+// against real production data) — only the "T18:30:00.000Z" time-of-day
+// suffix is a meaningless artifact of the Sheet's IST timezone setting.
+// The actual bug was comparing full Date-object instants (dragging that
+// artifact into the comparison) against quarter boundaries built at local
+// midnight. Fix: extract just YYYY-MM-DD and compare as strings.
+function extractDateOnly(dateStr) {
+  if (!dateStr) return null;
+  const m = String(dateStr).match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : null;
+}
+
+function quarterBoundsCalendar(qLabel) {
   const m = qLabel.match(/Q(\d) FY(\d\d)-(\d\d)/);
-  if (!m) return [new Date(0), new Date()];
+  if (!m) return ['0000-00-00', '9999-99-99'];
   const qNum = Number(m[1]);
   const fyStartYear = 2000 + Number(m[2]);
-  const starts = { 1: [2, 1], 2: [5, 1], 3: [8, 1], 4: [0, 1] }; // [monthIndex, day], month is 0-based; Q4 is Jan-Mar of fyStartYear+1
   let year = fyStartYear;
   let startMonth;
-  if (qNum === 1) startMonth = 3; // Apr
-  else if (qNum === 2) startMonth = 6; // Jul
-  else if (qNum === 3) startMonth = 9; // Oct
-  else { startMonth = 0; year = fyStartYear + 1; } // Jan of next cal year
-  const start = new Date(year, startMonth, 1);
-  const end = new Date(year, startMonth + 3, 0, 23, 59, 59);
+  if (qNum === 1) startMonth = 3;
+  else if (qNum === 2) startMonth = 6;
+  else if (qNum === 3) startMonth = 9;
+  else { startMonth = 0; year = fyStartYear + 1; }
+  const endMonth = startMonth + 2;
+  const endYear = year + Math.floor(endMonth / 12);
+  const endMonthNorm = endMonth % 12;
+  const lastDay = new Date(endYear, endMonthNorm + 1, 0).getDate();
+  const start = `${year}-${String(startMonth + 1).padStart(2, '0')}-01`;
+  const end = `${endYear}-${String(endMonthNorm + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
   return [start, end];
 }
 
+function quarterBounds(qLabel) {
+  // qLabel like "Q1 FY26-27" -> returns [startDate, endDate] as Date objects.
+  // Kept for any callers expecting Date objects; derived from the calendar-
+  // string version so both stay consistent. Prefer quarterBoundsCalendar()
+  // + extractDateOnly() for any new comparisons against stored data dates.
+  const [startStr, endStr] = quarterBoundsCalendar(qLabel);
+  return [new Date(startStr + 'T00:00:00'), new Date(endStr + 'T23:59:59')];
+}
+
 function sumProposalsInQuarter(qLabel) {
-  const [start, end] = quarterBounds(qLabel);
+  const [start, end] = quarterBoundsCalendar(qLabel);
   return STATE.dailyLogs
-    .filter(d => d.date && new Date(d.date) >= start && new Date(d.date) <= end)
+    .filter(d => {
+      const cal = extractDateOnly(d.date);
+      return cal && cal >= start && cal <= end;
+    })
     .reduce((s, d) => s + (Number(d.proposalsPresented) || 0), 0);
 }
 
 function sumAcresSignedInQuarter(qLabel) {
-  const [start, end] = quarterBounds(qLabel);
+  const [start, end] = quarterBoundsCalendar(qLabel);
   return STATE.deals
-    .filter(d => d.stage === 'Signed' && d.lastUpdated && new Date(d.lastUpdated) >= start && new Date(d.lastUpdated) <= end)
+    .filter(d => {
+      if (d.stage !== 'Signed') return false;
+      const cal = extractDateOnly(d.lastUpdated);
+      return cal && cal >= start && cal <= end;
+    })
     .reduce((s, d) => s + (Number(d.areaAcres) || 0), 0);
 }
 
 function countDealsSignedInQuarter(qLabel) {
-  const [start, end] = quarterBounds(qLabel);
+  const [start, end] = quarterBoundsCalendar(qLabel);
   return STATE.deals
-    .filter(d => d.stage === 'Signed' && d.lastUpdated && new Date(d.lastUpdated) >= start && new Date(d.lastUpdated) <= end)
+    .filter(d => {
+      if (d.stage !== 'Signed') return false;
+      const cal = extractDateOnly(d.lastUpdated);
+      return cal && cal >= start && cal <= end;
+    })
     .length;
 }
 
@@ -651,9 +687,11 @@ function isWithinDays(dateStr, days) {
 }
 
 function isSameMonth(dateStr, ref) {
-  if (!dateStr) return false;
-  const d = new Date(dateStr);
-  return d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
+  const cal = extractDateOnly(dateStr);
+  if (!cal) return false;
+  const refY = ref.getFullYear();
+  const refM = String(ref.getMonth() + 1).padStart(2, '0');
+  return cal.startsWith(`${refY}-${refM}`);
 }
 
 function toISODate(d) {
