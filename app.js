@@ -306,10 +306,13 @@ function setupDealModal() {
     const payload = {
       parcelName: document.getElementById('deal_parcelName').value,
       location: document.getElementById('deal_location').value,
+      surveyNumber: document.getElementById('deal_surveyNumber').value,
       areaAcres: Number(document.getElementById('deal_areaAcres').value) || 0,
       source: document.getElementById('deal_source').value,
       sourceDetail: document.getElementById('deal_sourceDetail').value,
+      sourcePhone: document.getElementById('deal_sourcePhone').value,
       stage, phase,
+      leadCategory: document.getElementById('deal_leadCategory').value,
       expectedGDV: document.getElementById('deal_expectedGDV').value,
       landownerAsk: document.getElementById('deal_landownerAsk').value,
       currentOffer: document.getElementById('deal_currentOffer').value,
@@ -359,10 +362,13 @@ function openDealModal(deal) {
   if (deal) {
     document.getElementById('deal_parcelName').value = deal.parcelName || '';
     document.getElementById('deal_location').value = deal.location || '';
+    document.getElementById('deal_surveyNumber').value = deal.surveyNumber || '';
     document.getElementById('deal_areaAcres').value = deal.areaAcres || '';
     document.getElementById('deal_source').value = deal.source || 'Broker';
     document.getElementById('deal_sourceDetail').value = deal.sourceDetail || '';
+    document.getElementById('deal_sourcePhone').value = deal.sourcePhone || '';
     document.getElementById('deal_stage').value = deal.stage || 'Lead';
+    document.getElementById('deal_leadCategory').value = deal.leadCategory || 'Warm';
     document.getElementById('deal_expectedGDV').value = deal.expectedGDV || '';
     document.getElementById('deal_landownerAsk').value = deal.landownerAsk || '';
     document.getElementById('deal_currentOffer').value = deal.currentOffer || '';
@@ -383,7 +389,7 @@ function renderPipeline() {
   const body = document.getElementById('pipelineTableBody');
   const sorted = [...STATE.deals].sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated));
   if (sorted.length === 0) {
-    body.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--ink-muted);">No parcels in pipeline yet. Click "+ Add New Parcel" to start.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--ink-muted);">No parcels in pipeline yet. Click "+ Add New Parcel" to start.</td></tr>`;
     return;
   }
   body.innerHTML = sorted.map(d => `
@@ -392,6 +398,7 @@ function renderPipeline() {
       <td>${d.areaAcres || '—'}</td>
       <td>${escapeHTML(d.source || '—')}</td>
       <td>${stageBadge(d.stage)}</td>
+      <td>${categoryBadge(d.leadCategory)}</td>
       <td>${d.expectedGDV ? '₹' + d.expectedGDV + ' Cr' : '—'}</td>
       <td>${escapeHTML(d.nextAction || '—')}</td>
       <td>${d.nextActionDate ? formatDateShort(d.nextActionDate) : '—'}</td>
@@ -407,6 +414,18 @@ function stageBadge(stage) {
     'Signed': 'badge-closed-signed', 'Dropped': 'badge-closed-dropped'
   };
   return `<span class="badge ${map[stage] || 'badge-sourcing'}">${escapeHTML(stage)}</span>`;
+}
+
+// Hot/Warm/Cold lead category — set manually by the BD Head per deal.
+// Colors per instruction: Hot=green, Warm=yellow/amber, Cold=red.
+function categoryBadge(category) {
+  const map = {
+    'Hot': { cls: 'badge-closed-signed', dot: '🟢' },   // green
+    'Warm': { cls: 'badge-evaluation', dot: '🟡' },     // amber/yellow
+    'Cold': { cls: 'badge-closed-dropped', dot: '🔴' },  // red
+  };
+  const c = map[category] || map['Warm'];
+  return `<span class="badge ${c.cls}">${c.dot} ${escapeHTML(category || 'Warm')}</span>`;
 }
 
 /* ---------------- TARGETS ---------------- */
