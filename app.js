@@ -6,7 +6,16 @@
 // ⚠️ REPLACE with your deployed Apps Script Web App URL after deployment
 const API_URL = "https://script.google.com/macros/s/AKfycbwnusKhEVckQbtT4BR_Txm15UjH4w1oaUylIuY6uvJK9kYpU0RdHVm6aa7IhMyg0U0_/exec";
 
-let STATE = { dailyLogs: [], deals: [], targets: [], directory: [] };
+// Mirrors DOCUMENT_CHECKLIST in Code.gs — keep both in sync if this changes.
+const DOCUMENT_CHECKLIST = {
+  'A': { label: 'Property Documents', docs: ['7/12 of Land', 'MOU', 'PA/DA', 'Property Card', 'Ferfar'] },
+  'B': { label: 'Technical & Planning Documents', docs: ['Demarcation', 'Plan', 'FSI Statement'] },
+  'C': { label: 'Feasibility', docs: ['Feasibility Report'] },
+  'D': { label: 'Redevelopment', docs: ['Conveyance Deed', 'Carpet Area', 'Sanction Plan', 'Completion Plan'] }
+};
+const MAX_UPLOAD_MB = 10; // client-side cap — base64 inflates size ~33%, keep requests reasonable for Apps Script
+
+let STATE = { dailyLogs: [], deals: [], targets: [], directory: [], dealActivity: [], documents: [] };
 let CURRENT_QUARTER = getCurrentQuarter();
 
 /* ---------------- INIT ---------------- */
@@ -20,6 +29,8 @@ document.addEventListener('DOMContentLoaded', () => {
   setupDealModal();
   setupDirectoryForm();
   setupDirectoryModal();
+  setupDealActivityModal();
+  setupDocumentModal();
   loadAll();
 });
 
@@ -46,10 +57,28 @@ async function apiCall(action, payload) {
   return json;
 }
 
+// POST variant — used ONLY for document upload, since base64 file data can
+// exceed a safe URL length. Content-Type text/plain keeps this a CORS
+// "simple request" (no preflight OPTIONS call), same reasoning as the
+// GET-only pattern used everywhere else in this file.
+async function apiPost(action, payload) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action, payload })
+  });
+  if (!res.ok) throw new Error('Network error: ' + res.status);
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'Unknown API error');
+  return json;
+}
+
 async function loadAll() {
   try {
     const res = await apiCall('getAll');
     STATE = res.data;
+    if (!STATE.dealActivity) STATE.dealActivity = [];
+    if (!STATE.documents) STATE.documents = [];
     renderDashboard();
     renderDailyLogTable();
     renderPipeline();
@@ -73,8 +102,6 @@ async function loadAll() {
 /* ---------------- DASHBOARD ---------------- */
 
 function renderDashboard() {
-  const today = toISODate(new Date());
-  const last30 = STATE.dailyLogs.filter(d => isWithinDays(d.date, 30));
   const thisMonthLogs = STATE.dailyLogs.filter(d => isSameMonth(d.date, new Date()));
 
   const sums = (arr, key) => arr.reduce((s, d) => s + (Number(d[key]) || 0), 0);
@@ -87,20 +114,11 @@ function renderDashboard() {
     proposalsPresented: sums(thisMonthLogs, 'proposalsPresented'),
   };
 
-  // Pipeline funnel counts
-  const phaseOf = stage => {
-    if (['Lead'].includes(stage)) return 'Sourcing';
-    if (['Site Visit Done'].includes(stage)) return 'Site Visit';
-    if (['Feasibility', 'Negotiation', 'Term Sheet', 'Due Diligence'].includes(stage)) return 'Negotiation';
-    if (['Signed', 'Dropped'].includes(stage)) return 'Closed';
-    return 'Sourcing';
-  };
   const activeDeals = STATE.deals.filter(d => d.stage !== 'Dropped');
   const signedDeals = STATE.deals.filter(d => d.stage === 'Signed');
   const totalAcresSigned = sums(signedDeals, 'areaAcres');
   const totalAcresPipeline = sums(activeDeals, 'areaAcres');
 
-  // Current quarter target
   const qTarget = STATE.targets.find(t => t.periodType === 'quarterly' && t.periodLabel === CURRENT_QUARTER) || {};
   const qProposalsActual = sumProposalsInQuarter(CURRENT_QUARTER);
   const qAcresActual = sumAcresSignedInQuarter(CURRENT_QUARTER);
@@ -406,8 +424,10 @@ function renderPipeline() {
     return;
   }
   body.innerHTML = sorted.map(d => `
-    <tr style="cursor:pointer;" onclick='openDealModal(${JSON.stringify(d).replace(/'/g, "&#39;")})'>
-      <td><b>${escapeHTML(d.parcelName)}</b><br><span style="color:var(--ink-muted);font-size:12px;">${escapeHTML(d.location || '')}</span></td>
+    <tr>
+      <td style="cursor:pointer;" onclick='openDealModal(${JSON.stringify(d).replace(/'/g, "&#39;")})'>
+        <b>${escapeHTML(d.parcelName)}</b><br><span style="color:var(--ink-muted);font-size:12px;">${escapeHTML(d.location || '')}</span>
+      </td>
       <td>${d.areaAcres || '—'}</td>
       <td>${escapeHTML(d.source || '—')}</td>
       <td>${stageBadge(d.stage)}</td>
@@ -416,7 +436,11 @@ function renderPipeline() {
       <td>${d.expectedGDV ? '₹' + d.expectedGDV + ' Cr' : '—'}</td>
       <td>${escapeHTML(d.nextAction || '—')}</td>
       <td>${d.nextActionDate ? formatDateShort(d.nextActionDate) : '—'}</td>
-      <td><button class="btn btn-outline btn-sm" onclick='event.stopPropagation(); openDealModal(${JSON.stringify(d).replace(/'/g, "&#39;")})'>Edit</button></td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-outline btn-sm" onclick='openDealModal(${JSON.stringify(d).replace(/'/g, "&#39;")})'>Edit</button>
+        <button class="btn btn-outline btn-sm" onclick="openDealActivityModal('${d.id}', ${JSON.stringify(d.parcelName)})">+ Activity</button>
+        <button class="btn btn-outline btn-sm" onclick="openDocumentModal('${d.id}', ${JSON.stringify(d.parcelName)})">Docs${documentBadgeCount(d.id)}</button>
+      </td>
     </tr>`).join('');
 }
 
@@ -455,6 +479,193 @@ function legalGateBadge(status) {
   return `<span class="badge ${map[label] || 'badge-sourcing'}">${escapeHTML(label)}</span>`;
 }
 
+/* ---------------- DEAL ACTIVITY (follow-up / work-done log) ----------------
+   Add-only, per deal. No delete function exists here or on the backend —
+   this is a permanent work-done record, same philosophy as StageHistory
+   and Directory. Feeds the CEO Dashboard's per-deal activity timeline. */
+
+let ACTIVITY_DEAL_ID = null;
+let ACTIVITY_PARCEL_NAME = '';
+
+function setupDealActivityModal() {
+  document.getElementById('dealActivityModalClose').addEventListener('click', closeDealActivityModal);
+  document.getElementById('dealActivityModal').addEventListener('click', (e) => {
+    if (e.target.id === 'dealActivityModal') closeDealActivityModal();
+  });
+  document.getElementById('act_date').value = toISODate(new Date());
+
+  document.getElementById('dealActivityForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = {
+      dealId: ACTIVITY_DEAL_ID,
+      parcelName: ACTIVITY_PARCEL_NAME,
+      date: document.getElementById('act_date').value,
+      activityType: document.getElementById('act_type').value,
+      summary: document.getElementById('act_summary').value.trim(),
+      nextFollowupDate: document.getElementById('act_nextFollowup').value,
+    };
+    if (!payload.summary) { showToast('Please describe what was done.', true); return; }
+    try {
+      await apiCall('addDealActivity', payload);
+      showToast('Activity logged.');
+      closeDealActivityModal();
+      await loadAll();
+    } catch (err) {
+      showToast('Failed to log activity: ' + err.message, true);
+    }
+  });
+}
+
+function openDealActivityModal(dealId, parcelName) {
+  ACTIVITY_DEAL_ID = dealId;
+  ACTIVITY_PARCEL_NAME = parcelName;
+  document.getElementById('dealActivityForm').reset();
+  document.getElementById('act_date').value = toISODate(new Date());
+  document.getElementById('dealActivityModalTitle').textContent = 'Log Activity — ' + parcelName;
+  renderActivityHistoryForDeal(dealId);
+  document.getElementById('dealActivityModal').classList.add('active');
+}
+
+function closeDealActivityModal() {
+  document.getElementById('dealActivityModal').classList.remove('active');
+}
+
+function renderActivityHistoryForDeal(dealId) {
+  const list = STATE.dealActivity
+    .filter(a => a.dealId === dealId)
+    .sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
+  const container = document.getElementById('activityHistoryList');
+  if (!container) return;
+  if (list.length === 0) {
+    container.innerHTML = `<div class="empty-state" style="padding:16px;"><div class="icon">📝</div>No activity logged yet for this parcel.</div>`;
+    return;
+  }
+  container.innerHTML = list.map(a => `
+    <div style="padding:10px 0;border-bottom:1px solid var(--border-soft);">
+      <div style="font-size:11.5px;color:var(--grey);text-transform:uppercase;letter-spacing:0.4px;">
+        ${formatDateShort(a.date)} &middot; ${escapeHTML(a.activityType || 'Other')}
+      </div>
+      <div style="font-size:13px;color:var(--ink);margin-top:3px;">${escapeHTML(a.summary || '')}</div>
+      ${a.nextFollowupDate ? `<div style="font-size:11.5px;color:var(--red);margin-top:3px;">Next follow-up: ${formatDateShort(a.nextFollowupDate)}</div>` : ''}
+    </div>`).join('');
+}
+
+/* ---------------- DOCUMENTS (file upload per deal) ----------------
+   Uploads go via apiPost (POST, base64) since file data can be too large
+   for a URL query string. Backend stores in Google Drive and logs a row
+   in the Documents sheet per upload — append-only; the checklist UI shows
+   only the MOST RECENT upload per (dealId, docType) as "current". */
+
+let DOC_DEAL_ID = null;
+let DOC_PARCEL_NAME = '';
+
+function setupDocumentModal() {
+  document.getElementById('documentModalClose').addEventListener('click', closeDocumentModal);
+  document.getElementById('documentModal').addEventListener('click', (e) => {
+    if (e.target.id === 'documentModal') closeDocumentModal();
+  });
+}
+
+function openDocumentModal(dealId, parcelName) {
+  DOC_DEAL_ID = dealId;
+  DOC_PARCEL_NAME = parcelName;
+  document.getElementById('documentModalTitle').textContent = 'Documents — ' + parcelName;
+  renderDocumentChecklist(dealId);
+  document.getElementById('documentModal').classList.add('active');
+}
+
+function closeDocumentModal() {
+  document.getElementById('documentModal').classList.remove('active');
+}
+
+// Returns the most recent Documents row for a given deal+docType, or null.
+function getLatestDocument(dealId, docType) {
+  const matches = STATE.documents.filter(d => d.dealId === dealId && d.docType === docType);
+  if (matches.length === 0) return null;
+  return matches.reduce((latest, d) => new Date(d.uploadedAt) > new Date(latest.uploadedAt) ? d : latest, matches[0]);
+}
+
+// Small "3/5" style count shown next to the "Docs" button in the pipeline
+// table, so the BD Manager can see completeness at a glance without opening
+// the modal. Counts unique docTypes with at least one upload, across ALL
+// categories, out of the total number of defined slots.
+function documentBadgeCount(dealId) {
+  let total = 0, uploaded = 0;
+  Object.values(DOCUMENT_CHECKLIST).forEach(cat => {
+    cat.docs.forEach(docType => {
+      total++;
+      if (getLatestDocument(dealId, docType)) uploaded++;
+    });
+  });
+  return ` <span style="font-size:10.5px;color:var(--grey);">(${uploaded}/${total})</span>`;
+}
+
+function renderDocumentChecklist(dealId) {
+  const container = document.getElementById('documentChecklistBody');
+  if (!container) return;
+  const sections = Object.entries(DOCUMENT_CHECKLIST).map(([catKey, cat]) => {
+    const rows = cat.docs.map(docType => {
+      const existing = getLatestDocument(dealId, docType);
+      const safeDocType = docType.replace(/'/g, "\\'");
+      return `
+      <div class="doc-row">
+        <div class="doc-row-name">${escapeHTML(docType)}</div>
+        <div class="doc-row-status">
+          ${existing
+            ? `<a href="${existing.driveUrl}" target="_blank" rel="noopener" class="badge badge-closed-signed">✓ ${escapeHTML(truncate(existing.fileName, 22))}</a>`
+            : `<span class="badge badge-sourcing">Not uploaded</span>`}
+        </div>
+        <div class="doc-row-action">
+          <input type="file" id="docfile_${catKey}_${cat.docs.indexOf(docType)}" style="display:none;"
+            onchange="handleDocumentFileSelect(this, '${catKey}', '${safeDocType}')">
+          <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('docfile_${catKey}_${cat.docs.indexOf(docType)}').click()">
+            ${existing ? 'Replace' : 'Upload'}
+          </button>
+        </div>
+      </div>`;
+    }).join('');
+    return `
+      <div class="doc-category">
+        <div class="doc-category-title">${escapeHTML(cat.label)}</div>
+        ${rows}
+      </div>`;
+  }).join('');
+  container.innerHTML = sections;
+}
+
+function handleDocumentFileSelect(inputEl, category, docType) {
+  const file = inputEl.files && inputEl.files[0];
+  if (!file) return;
+  if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+    showToast(`File too large — max ${MAX_UPLOAD_MB}MB.`, true);
+    inputEl.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      // reader.result looks like "data:<mime>;base64,<data>" — strip the prefix
+      const base64Data = reader.result.split(',')[1];
+      showToast('Uploading ' + file.name + '…');
+      await apiPost('uploadDocument', {
+        dealId: DOC_DEAL_ID,
+        parcelName: DOC_PARCEL_NAME,
+        category, docType,
+        fileName: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        base64Data
+      });
+      showToast('Document uploaded.');
+      await loadAll();
+      renderDocumentChecklist(DOC_DEAL_ID);
+    } catch (err) {
+      showToast('Upload failed: ' + err.message, true);
+    }
+  };
+  reader.onerror = () => showToast('Could not read file.', true);
+  reader.readAsDataURL(file);
+}
+
 /* ---------------- TARGETS ---------------- */
 
 // READ-ONLY in this tool. Setting/editing AOP targets is a CEO Dashboard
@@ -480,13 +691,9 @@ function renderTargets() {
   }).join('');
 }
 
-// READ-ONLY. AOP Lead Conversion Funnel (Sourcing -> BD Head Filter ->
-// BD Head Refinement -> Signed). By design, actuals for these three
-// stages are entered directly in the Google Sheet's Targets tab — there
-// is intentionally no input UI for them in EITHER this tool or the CEO
-// Dashboard (confirmed/decided explicitly, not an oversight). They are
-// NOT derived from Pipeline deal-stage data, per product decision to
-// keep Pipeline's own stages independent of this funnel model.
+// READ-ONLY. AOP Lead Conversion Funnel actuals (Sourcing/BD Head
+// Filter/BD Head Refinement) are entered directly in the Google Sheet's
+// Targets tab, by design — see README.
 function renderFunnelTargets() {
   const quarters = ['Q1 FY26-27', 'Q2 FY26-27', 'Q3 FY26-27', 'Q4 FY26-27'];
   const body = document.getElementById('funnelTargetsTableBody');
@@ -507,10 +714,7 @@ function renderFunnelTargets() {
 
 /* ---------------- DIRECTORY ----------------
    Add and Edit only. There is deliberately NO delete function in this file
-   and NO delete action on the backend for Directory entries — entries can
-   only be added or edited, never removed. Do not add delete capability
-   here even if asked later; it's a product constraint, not a missing
-   feature. */
+   and NO delete action on the backend for Directory entries. */
 
 let DIR_SEARCH_TERM = '';
 
@@ -554,7 +758,7 @@ function setupDirectoryForm() {
 
 function renderDirectory() {
   const body = document.getElementById('directoryTableBody');
-  if (!body) return; // guard in case markup isn't present yet
+  if (!body) return;
   let rows = [...STATE.directory];
   if (DIR_SEARCH_TERM) {
     rows = rows.filter(d =>
@@ -617,10 +821,6 @@ function closeDirectoryModal() {
   document.getElementById('directoryModal').classList.remove('active');
 }
 
-// Populates the <datalist> elements used for name autocomplete in
-// Daily Log (broker/owner names) and the Pipeline modal (source detail).
-// This is suggestion-only — typing any other text is still accepted,
-// per design (Directory is not a hard lookup gate).
 function populateAutocompleteSuggestions() {
   const brokers = STATE.directory.filter(d => d.type === 'Broker');
   const owners = STATE.directory.filter(d => d.type === 'Landowner');
@@ -640,9 +840,8 @@ function populateAutocompleteSuggestions() {
 
 function getCurrentQuarter() {
   const d = new Date();
-  const m = d.getMonth(); // 0=Jan
+  const m = d.getMonth();
   const y = d.getFullYear();
-  // Indian FY: Apr-Jun=Q1, Jul-Sep=Q2, Oct-Dec=Q3, Jan-Mar=Q4
   let fyStartYear, q;
   if (m >= 3 && m <= 5) { q = 1; fyStartYear = y; }
   else if (m >= 6 && m <= 8) { q = 2; fyStartYear = y; }
@@ -652,14 +851,6 @@ function getCurrentQuarter() {
   return `Q${q} ${fyLabel}`;
 }
 
-// ---- TIMEZONE-SAFE DATE HANDLING ----
-// See identical comment in ceo-dashboard.js. The date PORTION of stored
-// ISO timestamps already matches the intended calendar date (confirmed
-// against real production data) — only the "T18:30:00.000Z" time-of-day
-// suffix is a meaningless artifact of the Sheet's IST timezone setting.
-// The actual bug was comparing full Date-object instants (dragging that
-// artifact into the comparison) against quarter boundaries built at local
-// midnight. Fix: extract just YYYY-MM-DD and compare as strings.
 function extractDateOnly(dateStr) {
   if (!dateStr) return null;
   const m = String(dateStr).match(/^(\d{4}-\d{2}-\d{2})/);
@@ -687,10 +878,6 @@ function quarterBoundsCalendar(qLabel) {
 }
 
 function quarterBounds(qLabel) {
-  // qLabel like "Q1 FY26-27" -> returns [startDate, endDate] as Date objects.
-  // Kept for any callers expecting Date objects; derived from the calendar-
-  // string version so both stay consistent. Prefer quarterBoundsCalendar()
-  // + extractDateOnly() for any new comparisons against stored data dates.
   const [startStr, endStr] = quarterBoundsCalendar(qLabel);
   return [new Date(startStr + 'T00:00:00'), new Date(endStr + 'T23:59:59')];
 }
