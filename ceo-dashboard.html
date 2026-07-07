@@ -289,6 +289,20 @@
   </div>
 </div>
 
+<!-- ============ DOCUMENT STATUS MODAL (read-only, view/download links only) ============ -->
+<div class="modal-overlay" id="ceoDocumentModal">
+  <div class="modal-box" style="max-width:580px;">
+    <div class="modal-header">
+      <h3 id="ceoDocumentModalTitle">Documents</h3>
+      <button class="modal-close" onclick="closeCeoDocumentModal()">&times;</button>
+    </div>
+    <p style="font-size:12px;color:var(--grey);margin-bottom:16px;">
+      Read-only view. To upload or replace documents, use the BD Entry Tool's Deal Pipeline tab.
+    </p>
+    <div id="ceoDocumentModalBody"></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="ceo-dashboard.js"></script>
