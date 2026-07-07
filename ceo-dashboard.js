@@ -13,7 +13,15 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwnusKhEVckQbtT4BR_Txm1
 
 const AUTO_REFRESH_MINUTES = 10;
 
-let STATE = { dailyLogs: [], deals: [], targets: [], stageHistory: [], dealActivity: [], directory: [] };
+// Mirrors DOCUMENT_CHECKLIST in Code.gs — keep both in sync if this changes.
+const DOCUMENT_CHECKLIST = {
+  'A': { label: 'Property Documents', docs: ['7/12 of Land', 'MOU', 'PA/DA', 'Property Card', 'Ferfar'] },
+  'B': { label: 'Technical & Planning Documents', docs: ['Demarcation', 'Plan', 'FSI Statement'] },
+  'C': { label: 'Feasibility', docs: ['Feasibility Report'] },
+  'D': { label: 'Redevelopment', docs: ['Conveyance Deed', 'Carpet Area', 'Sanction Plan', 'Completion Plan'] }
+};
+
+let STATE = { dailyLogs: [], deals: [], targets: [], stageHistory: [], dealActivity: [], directory: [], documents: [] };
 let SELECTED_QUARTER = getCurrentQuarter();
 let PIPELINE_FILTER = { search: '', category: 'All', status: 'All' };
 
@@ -28,8 +36,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const searchPanel = document.getElementById('searchPanel');
   if (searchPanel) searchPanel.addEventListener('click', e => { if (e.target.id === 'searchPanel') closeSearchPanel(); });
 
+  const ceoDocModal = document.getElementById('ceoDocumentModal');
+  if (ceoDocModal) ceoDocModal.addEventListener('click', e => { if (e.target.id === 'ceoDocumentModal') closeCeoDocumentModal(); });
+
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeTimelineModal(); closeSearchPanel(); }
+    if (e.key === 'Escape') { closeTimelineModal(); closeSearchPanel(); closeCeoDocumentModal(); }
   });
 });
 
@@ -41,6 +52,9 @@ async function loadData() {
     const json = await res.json();
     if (!json.ok) throw new Error(json.error || 'Unknown error');
     STATE = json.data;
+    if (!STATE.dealActivity) STATE.dealActivity = [];
+    if (!STATE.documents) STATE.documents = [];
+    if (!STATE.directory) STATE.directory = [];
     document.getElementById('refreshNote').textContent =
       'Last updated ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
     render();
@@ -1091,6 +1105,7 @@ function renderPipelineTable() {
         <div style="display:flex;gap:6px;">${floorVerdictBadge(floors.verdict)}${legalGateBadge(d.legalGateStatus)}</div>
       </div>
       <button class="timeline-link" onclick='openTimelineModal("${d.id}")'>View Activity Timeline \u2192</button>
+        <button class="timeline-link" style="margin-left:16px;color:var(--ink);" onclick='openCeoDocumentModal("${d.id}","${escapeHTML(d.parcelName)}")'>Documents (${ceoDocumentBadgeCount(d.id)}) \u2192</button>
     </div>`;
   }).join('');
 }
@@ -1165,6 +1180,78 @@ function closeTimelineModal() {
   const modal = document.getElementById('timelineModal');
   if (modal) modal.classList.remove('active');
 }
+
+/* ---------------- CEO DOCUMENT MODAL (read-only view/download) ----------------
+   Shows the 4-category document checklist for a deal with uploaded/pending
+   status and clickable Drive view links. No upload capability here — the
+   CEO Dashboard is read-only except for setTarget. Uploads happen in the
+   BD entry tool only. */
+
+// Returns the most recent uploaded document for a given deal + docType.
+function getLatestDocument(dealId, docType) {
+  if (!STATE.documents) return null;
+  const matches = (STATE.documents || []).filter(d => d.dealId === dealId && d.docType === docType);
+  if (matches.length === 0) return null;
+  return matches.reduce((latest, d) =>
+    new Date(d.uploadedAt) > new Date(latest.uploadedAt) ? d : latest, matches[0]);
+}
+
+// "X/13" count shown on the Documents button in each deal card.
+function ceoDocumentBadgeCount(dealId) {
+  let total = 0, uploaded = 0;
+  Object.values(DOCUMENT_CHECKLIST).forEach(cat => {
+    cat.docs.forEach(docType => {
+      total++;
+      if (getLatestDocument(dealId, docType)) uploaded++;
+    });
+  });
+  return `${uploaded}/${total}`;
+}
+
+function setupCeoDocumentModal() {
+  // Wired in DOMContentLoaded above — nothing more needed here.
+}
+
+function openCeoDocumentModal(dealId, parcelName) {
+  const modal = document.getElementById('ceoDocumentModal');
+  const body = document.getElementById('ceoDocumentModalBody');
+  const title = document.getElementById('ceoDocumentModalTitle');
+  if (!modal || !body || !title) return;
+
+  title.textContent = 'Documents — ' + parcelName;
+
+  const sections = Object.entries(DOCUMENT_CHECKLIST).map(([catKey, cat]) => {
+    const rows = cat.docs.map(docType => {
+      const existing = getLatestDocument(dealId, docType);
+      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--border-soft);">
+        <span style="font-size:13px;color:var(--ink);flex:1;">${escapeHTML(docType)}</span>
+        <span>
+          ${existing
+            ? `<a href="${escapeHTML(existing.driveUrl)}" target="_blank" rel="noopener"
+                class="badge badge-closed-signed"
+                style="text-decoration:none;">✓ View</a>`
+            : `<span class="badge badge-sourcing">Pending</span>`}
+        </span>
+      </div>`;
+    }).join('');
+    return `<div style="margin-bottom:20px;">
+      <div style="font-size:11px;font-weight:700;color:var(--ink);text-transform:uppercase;
+           letter-spacing:0.5px;margin-bottom:8px;padding-bottom:6px;
+           border-bottom:2px solid var(--border);">${escapeHTML(cat.label)}</div>
+      ${rows}
+    </div>`;
+  }).join('');
+
+  body.innerHTML = sections;
+  modal.classList.add('active');
+}
+
+function closeCeoDocumentModal() {
+  const modal = document.getElementById('ceoDocumentModal');
+  if (modal) modal.classList.remove('active');
+}
+
+
 
 /* ---------------- CONTACT SEARCH PANEL ----------------
    Searches across the Directory (brokers/landowners/
