@@ -96,85 +96,146 @@ function render() {
   const qAcresActual = sumAcresSignedInQuarter(SELECTED_QUARTER);
   const qDealsSignedActual = countDealsSignedInQuarter(SELECTED_QUARTER);
 
+  const hasAnalyticsData = STATE.deals.length > 0 || STATE.dailyLogs.length > 0;
+
   const html = `
-    <div class="section-label"><span>Performance Dashboard</span><div class="line"></div></div>
-    ${renderPerformanceDashboard(thisMonthLogs, qTarget, SELECTED_QUARTER)}
+    <div class="tier-heading tier1"><span>\ud83d\udd34 Daily Glance</span><div class="line"></div></div>
+    <div class="tier-sub">What needs your attention right now \u2014 checked every morning.</div>
 
     ${renderAOPRedFlags(activeDeals, signedDeals, qTarget)}
 
+    ${renderStalledDealsCard()}
+
     <div class="card">
-      <div class="card-title">Daily Activity Summary <span class="as-of">${thisMonthLogs.length} day${thisMonthLogs.length === 1 ? '' : 's'} logged this month</span></div>
-      <p style="font-size:12px;color:var(--grey-soft);margin-bottom:16px;">
-        Day-by-day activity counts for the current month. Broker/landowner names and notes stay in the BD entry tool — only counts are shown here.
-      </p>
-      ${renderDailyLogSummaryTable(thisMonthLogs)}
+      <div class="card-title">${SELECTED_QUARTER} Target Status</div>
+      ${renderQuarterSnapshot(qTarget, qProposalsActual, qAcresActual, qDealsSignedActual)}
     </div>
 
-    <div class="section-label"><span>Deal Funnel</span><div class="line"></div></div>
-    <div class="card">
-      ${renderFunnelHTML()}
-      <div class="stat-strip">
-        <div class="stat"><b>${totalAcresSigned.toFixed(1)} / 20</b>FY26-27 acres signed</div>
-        <div class="stat"><b>${signedDeals.length}</b>FY26-27 deals signed</div>
-        <div class="stat"><b>${STATE.deals.length}</b>Total parcels tracked (all time)</div>
+    <div class="tier-heading"><span>\ud83d\udfe1 Weekly Check</span><div class="line"></div></div>
+    <div class="tier-sub">Trends worth a look once a week \u2014 click to expand.</div>
+
+    <details class="tier-section">
+      <summary><span class="chevron">\u25b8</span><span>Performance Dashboard \u2014 MTD / Quarter / Annual / All-Time</span><div class="line"></div></summary>
+      ${renderPerformanceDashboard(thisMonthLogs, qTarget, SELECTED_QUARTER)}
+    </details>
+
+    <details class="tier-section">
+      <summary><span class="chevron">\u25b8</span><span>Deal Funnel</span><div class="line"></div></summary>
+      <div class="card">
+        ${renderFunnelHTML()}
+        <div class="stat-strip">
+          <div class="stat"><b>${totalAcresSigned.toFixed(1)} / 20</b>FY26-27 acres signed</div>
+          <div class="stat"><b>${signedDeals.length}</b>FY26-27 deals signed</div>
+          <div class="stat"><b>${STATE.deals.length}</b>Total parcels tracked (all time)</div>
+        </div>
       </div>
-    </div>
+    </details>
 
-    <div class="section-label"><span>Is BD Activity Converting? \u2014 Performance Analytics</span><div class="line"></div></div>
-    ${renderAnalyticsSection()}
+    <details class="tier-section">
+      <summary><span class="chevron">\u25b8</span><span>Is BD Activity Converting? \u2014 Conversion Rates & Trend</span><div class="line"></div></summary>
+      ${hasAnalyticsData ? renderConversionAnalytics() : `<div class="card"><div class="empty-state"><div class="icon">\ud83d\udcca</div>Not enough data yet to compute conversion analytics.</div></div>`}
+    </details>
 
-    <div class="section-label"><span>AOP Target Progress</span><div class="line"></div></div>
-    <div class="card">
-      <div class="quarter-tabs" id="quarterTabs"></div>
-      ${progressRowWithStatus('Proposals Presented', qProposalsActual, qTarget.targetProposals || 2, false, SELECTED_QUARTER)}
-      ${progressRowWithStatus('Acres Signed', qAcresActual, qTarget.targetAcres || 5, true, SELECTED_QUARTER)}
-      ${progressRowWithStatus('Deals Signed', qDealsSignedActual, qTarget.targetDealsSigned || 1, false, SELECTED_QUARTER)}
-    </div>
+    <details class="tier-section">
+      <summary><span class="chevron">\u25b8</span><span>Source-Wise Performance</span><div class="line"></div></summary>
+      <div class="card">
+        <p style="font-size:12px;color:var(--grey-soft);margin-bottom:16px;">
+          How each lead source (Broker, Reference, Landowner Direct, Cold Outreach, Other) is actually converting \u2014 not just how many leads it brings in.
+        </p>
+        ${renderSourcePerformanceTable()}
+      </div>
+    </details>
 
-    <div class="section-label"><span>AOP Lead Conversion Funnel — ${SELECTED_QUARTER}</span><div class="line"></div></div>
-    <div class="card">
-      <p style="font-size:12px;color:var(--grey-soft);margin-bottom:16px;">
-        Per the AOP's funnel model (Sourcing \u2192 BD Head Filter \u2192 BD Head Refinement \u2192 Signed). Shows the CONVERSION RATIO between stages \u2014 not targets \u2014 for the selected quarter. By design, the underlying Sourced/Qualified/Prospects numbers are updated directly in the Google Sheet's Targets tab, not through either app \u2014 this is intentional, not a missing feature.
-      </p>
-      ${renderFunnelConversionRatios(qTarget, qDealsSignedActual)}
-    </div>
+    <details class="tier-section">
+      <summary><span class="chevron">\u25b8</span><span>FY26-27 Forecast \u2014 Run-Rate Projection</span><div class="line"></div></summary>
+      <div class="card">
+        <p style="font-size:12px;color:var(--grey-soft);margin-bottom:16px;">
+          At the current pace, where will we land by FY year-end (March 2027) against the AOP's annual targets? This projects forward from what's been achieved so far \u2014 it's a planning signal, not a guarantee.
+        </p>
+        ${renderAnnualForecast()}
+      </div>
+    </details>
 
-    <div class="section-label"><span>Set AOP Targets</span><div class="line"></div></div>
-    <div class="card">
-      <p style="font-size:12.5px;color:var(--grey);margin-bottom:16px;">
-        Targets are set here only — the BD entry tool shows these as view-only. Actuals above roll up automatically; only the target numbers are editable.
-      </p>
-      ${renderTargetEditTable()}
-    </div>
+    <div class="tier-heading"><span>\u26aa Reference \u2014 Drill Down Only</span><div class="line"></div></div>
+    <div class="tier-sub">Raw detail, admin, and browsing \u2014 not needed for a daily read.</div>
 
-    <div class="section-label"><span>Land Deal Pipeline</span><div class="line"></div></div>
-    ${renderMicroMarketComparison()}
-    <div class="card">
-      <div class="card-title">All Parcels<span class="as-of">${STATE.deals.length} total</span></div>
-      ${renderPipelineFilterBar()}
-      <div id="pipelineCardsContainer">${renderPipelineTable()}</div>
-    </div>
+    <details class="tier-section">
+      <summary><span class="chevron">\u25b8</span><span>AOP Target Progress \u2014 All Quarters</span><div class="line"></div></summary>
+      <div class="card">
+        <div class="quarter-tabs" id="quarterTabs"></div>
+        ${progressRowWithStatus('Proposals Presented', qProposalsActual, qTarget.targetProposals || 2, false, SELECTED_QUARTER)}
+        ${progressRowWithStatus('Acres Signed', qAcresActual, qTarget.targetAcres || 5, true, SELECTED_QUARTER)}
+        ${progressRowWithStatus('Deals Signed', qDealsSignedActual, qTarget.targetDealsSigned || 1, false, SELECTED_QUARTER)}
+      </div>
+    </details>
 
-    <div class="section-label"><span>Source-Wise Performance</span><div class="line"></div></div>
-    <div class="card">
-      <p style="font-size:12px;color:var(--grey-soft);margin-bottom:16px;">
-        How each lead source (Broker, Reference, Landowner Direct, Cold Outreach, Other) is actually converting \u2014 not just how many leads it brings in.
-      </p>
-      ${renderSourcePerformanceTable()}
-    </div>
+    <details class="tier-section">
+      <summary><span class="chevron">\u25b8</span><span>AOP Lead Conversion Funnel (Manual Ratios) \u2014 ${SELECTED_QUARTER}</span><div class="line"></div></summary>
+      <div class="card">
+        <p style="font-size:12px;color:var(--grey-soft);margin-bottom:16px;">
+          Per the AOP's funnel model (Sourcing \u2192 BD Head Filter \u2192 BD Head Refinement \u2192 Signed). Shows the CONVERSION RATIO between stages \u2014 not targets \u2014 for the selected quarter, computed from manually-entered Sourced/Qualified/Prospects counts (Targets tab). This is a different data source from the auto-computed "Is BD Activity Converting?" funnel in Weekly Check \u2014 treat that one as authoritative if the two ever disagree.
+        </p>
+        ${renderFunnelConversionRatios(qTarget, qDealsSignedActual)}
+      </div>
+    </details>
 
-    <div class="section-label"><span>FY26-27 Forecast \u2014 Run-Rate Projection</span><div class="line"></div></div>
-    <div class="card">
-      <p style="font-size:12px;color:var(--grey-soft);margin-bottom:16px;">
-        At the current pace, where will we land by FY year-end (March 2027) against the AOP's annual targets? This projects forward from what's been achieved so far \u2014 it's a planning signal, not a guarantee.
-      </p>
-      ${renderAnnualForecast()}
-    </div>
+    <details class="tier-section">
+      <summary><span class="chevron">\u25b8</span><span>Set AOP Targets</span><div class="line"></div></summary>
+      <div class="card">
+        <p style="font-size:12.5px;color:var(--grey);margin-bottom:16px;">
+          Targets are set here only — the BD entry tool shows these as view-only. Actuals above roll up automatically; only the target numbers are editable.
+        </p>
+        ${renderTargetEditTable()}
+      </div>
+    </details>
+
+    <details class="tier-section">
+      <summary><span class="chevron">\u25b8</span><span>Land Deal Pipeline \u2014 All Parcels</span><div class="line"></div></summary>
+      ${renderMicroMarketComparison()}
+      <div class="card">
+        <div class="card-title">All Parcels<span class="as-of">${STATE.deals.length} total</span></div>
+        ${renderPipelineFilterBar()}
+        <div id="pipelineCardsContainer">${renderPipelineTable()}</div>
+      </div>
+    </details>
+
+    <details class="tier-section">
+      <summary><span class="chevron">\u25b8</span><span>Daily Activity Summary</span><div class="line"></div></summary>
+      <div class="card">
+        <div class="card-title">Daily Activity Summary <span class="as-of">${thisMonthLogs.length} day${thisMonthLogs.length === 1 ? '' : 's'} logged this month</span></div>
+        <p style="font-size:12px;color:var(--grey-soft);margin-bottom:16px;">
+          Day-by-day activity counts for the current month. Broker/landowner names and notes stay in the BD entry tool — only counts are shown here.
+        </p>
+        ${renderDailyLogSummaryTable(thisMonthLogs)}
+      </div>
+    </details>
 
     <div class="footer-note">Auto-refreshes every ${AUTO_REFRESH_MINUTES} minutes · Daily notes and free-text remarks stay in the BD entry tool \u2014 everything else shown here is the full record</div>
   `;
   document.getElementById('dashboardRoot').innerHTML = html;
   renderQuarterTabs();
+}
+
+// Condensed 3-line current-quarter status for the Tier-1 daily view \u2014
+// same underlying numbers as the full "AOP Target Progress" section in
+// Reference, just without the quarter-tab browser or progress bars.
+function renderQuarterSnapshot(qTarget, proposalsActual, acresActual, dealsSignedActual) {
+  const rows = [
+    { label: 'Proposals Presented', actual: proposalsActual, target: qTarget.targetProposals || 2, isDecimal: false },
+    { label: 'Acres Signed', actual: acresActual, target: qTarget.targetAcres || 5, isDecimal: true },
+    { label: 'Deals Signed', actual: dealsSignedActual, target: qTarget.targetDealsSigned || 1, isDecimal: false },
+  ];
+  const items = rows.map(r => {
+    const achievedPct = r.target > 0 ? Math.min(100, (r.actual / r.target) * 100) : 0;
+    const status = getTargetPaceStatus(SELECTED_QUARTER, achievedPct);
+    const a = r.isDecimal ? Number(r.actual).toFixed(1) : r.actual;
+    return `<div class="qs-item" style="border-left-color:${status.label === 'On Track' ? 'var(--green)' : status.label === 'At Risk' ? 'var(--amber)' : 'var(--red-deep)'};">
+      <div class="qs-label">${r.label}</div>
+      <div class="qs-value">${a} <span class="qs-target">/ ${r.target}</span></div>
+      <span class="badge ${status.cls}">${status.label}</span>
+    </div>`;
+  }).join('');
+  return `<div class="quarter-snapshot">${items}</div>`;
 }
 
 function renderQuarterTabs() {
@@ -685,7 +746,15 @@ function renderConversionAnalytics() {
       <div class="card-title">Negotiation \u2192 Signed Rate (Cumulative), Last 4 Quarters</div>
       <div style="display:flex;align-items:flex-end;gap:10px;height:90px;padding:0 8px;">${trendStrip}</div>
     </div>
+  `;
+}
 
+// Pulled out of renderConversionAnalytics so it can be pinned to the Tier-1
+// daily view on its own \u2014 stalled deals are the single most useful
+// accountability signal on this page and don't belong buried under a
+// "weekly" analytics section.
+function renderStalledDealsCard() {
+  return `
     <div class="card">
       <div class="card-title">Stalled Deals <span class="as-of">flagged at 30 / 60 / 90+ days with no stage movement</span></div>
       ${renderStalledDealsHTML()}
@@ -789,13 +858,6 @@ function renderAnnualForecast() {
       ${Math.round(elapsedPct * 100)}% of FY26-27 elapsed (${elapsedFYDays} of ${totalFYDays} days). Projection = achieved-so-far \u00f7 % of year elapsed \u2014 a straight-line extrapolation, not a forecast model.
     </p>
   `;
-}
-
-function renderAnalyticsSection() {
-  if (STATE.deals.length === 0 && STATE.dailyLogs.length === 0) {
-    return `<div class="card"><div class="empty-state"><div class="icon">\ud83d\udcca</div>Not enough data yet to compute conversion analytics.</div></div>`;
-  }
-  return renderConversionAnalytics();
 }
 
 // Pure conversion-ratio view of the AOP funnel — no targets, no editing.
