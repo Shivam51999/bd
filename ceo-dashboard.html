@@ -64,6 +64,33 @@
   .section-label:first-child { margin-top: 0; }
   .section-label .line { flex: 1; height: 1px; background: var(--border); }
 
+  /* ---------- TIER SYSTEM (Daily Glance / Weekly Check / Reference) ---------- */
+  .tier-heading {
+    font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px;
+    color: var(--grey-soft); margin: 44px 0 4px; display: flex; align-items: center; gap: 10px;
+  }
+  .tier-heading .line { flex: 1; height: 1px; background: var(--border); }
+  .tier-heading.tier1 { color: var(--red-deep); }
+  .tier-sub { font-size: 11.5px; color: var(--grey-soft); margin: -2px 0 16px; }
+
+  details.tier-section { margin-bottom: 4px; }
+  details.tier-section > summary {
+    list-style: none; cursor: pointer; font-size: 11.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--grey); margin: 20px 0 14px; display: flex; align-items: center; gap: 10px;
+    padding: 4px 0;
+  }
+  details.tier-section > summary::-webkit-details-marker { display: none; }
+  details.tier-section > summary .line { flex: 1; height: 1px; background: var(--border); }
+  details.tier-section > summary .chevron { color: var(--grey-soft); font-size: 11px; transition: transform 0.2s; }
+  details.tier-section[open] > summary .chevron { transform: rotate(90deg); }
+  details.tier-section > summary:hover { color: var(--ink); }
+
+  .quarter-snapshot { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+  .qs-item { border-left: 3px solid var(--border); padding-left: 14px; }
+  .qs-item .qs-label { font-size: 11px; color: var(--grey); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .qs-item .qs-value { font-size: 22px; font-weight: 700; font-family: Georgia, serif; color: var(--ink); margin: 4px 0; }
+  .qs-item .qs-value .qs-target { font-size: 13px; color: var(--grey); font-weight: 400; font-family: inherit; }
+
   .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
   .kpi-card {
     background: var(--card); border-radius: var(--radius); padding: 22px 24px;
