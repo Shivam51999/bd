@@ -107,9 +107,9 @@ function render() {
     <div class="tier-heading tier1"><span>\ud83d\udd34 Daily Glance</span><div class="line"></div></div>
     <div class="tier-sub">What needs your attention right now \u2014 checked every morning.</div>
 
-    ${renderAOPRedFlags(activeDeals, signedDeals, qTarget)}
+    <div id="section-aop-red-flags">${renderAOPRedFlags(activeDeals, signedDeals, qTarget)}</div>
 
-    ${renderStalledDealsCard()}
+    <div id="section-stalled-deals">${renderStalledDealsCard()}</div>
 
     <div class="card">
       <div class="card-title">${SELECTED_QUARTER} Target Status</div>
@@ -119,12 +119,12 @@ function render() {
     <div class="tier-heading"><span>\ud83d\udfe1 Weekly Check</span><div class="line"></div></div>
     <div class="tier-sub">Trends worth a look once a week \u2014 click to expand.</div>
 
-    <details class="tier-section">
+    <details class="tier-section" id="section-performance-dashboard">
       <summary><span class="chevron">\u25b8</span><span>Performance Dashboard \u2014 MTD / Quarter / Annual / All-Time</span><div class="line"></div></summary>
       ${renderPerformanceDashboard(thisMonthLogs, qTarget, SELECTED_QUARTER)}
     </details>
 
-    <details class="tier-section">
+    <details class="tier-section" id="section-deal-funnel">
       <summary><span class="chevron">\u25b8</span><span>Deal Funnel</span><div class="line"></div></summary>
       <div class="card">
         ${renderFunnelHTML()}
@@ -204,7 +204,7 @@ function render() {
       </div>
     </details>
 
-    <details class="tier-section">
+    <details class="tier-section" id="section-daily-activity">
       <summary><span class="chevron">\u25b8</span><span>Daily Activity Summary</span><div class="line"></div></summary>
       <div class="card">
         <div class="card-title">Daily Activity Summary <span class="as-of">${thisMonthLogs.length} day${thisMonthLogs.length === 1 ? '' : 's'} logged this month</span></div>
@@ -220,6 +220,7 @@ function render() {
   document.getElementById('dashboardRoot').innerHTML = html;
   renderQuarterTabs();
   bindSynopsisTabs();
+  bindBacklinks();
 }
 
 // Condensed 3-line current-quarter status for the Tier-1 daily view \u2014
@@ -297,6 +298,28 @@ function computeSynopsisStats(periodKey, thisMonthLogs, qLabel) {
   };
 }
 
+// Where each synopsis figure's underlying data actually lives, so a click
+// can jump straight to the source section instead of leaving the CEO to
+// hunt for it. IDs correspond to wrapper elements added around those
+// sections/cards in render().
+const SYNOPSIS_SOURCES = {
+  leads: 'section-daily-activity',
+  visits: 'section-daily-activity',
+  meetings: 'section-daily-activity',
+  proposals: 'section-daily-activity',
+  dealsClosed: 'section-deal-funnel',
+  acresSigned: 'section-deal-funnel',
+  redFlags: 'section-aop-red-flags',
+  stalled: 'section-stalled-deals',
+};
+
+// Inline clickable phrase inside the narrative sentence \u2014 not a real
+// link (no href/navigation), just a same-page jump-and-highlight, so it's
+// a button styled as text rather than an <a>.
+function backlinkSpan(sourceKey, html) {
+  return `<button type="button" class="backlink" data-jump="${SYNOPSIS_SOURCES[sourceKey]}">${html}</button>`;
+}
+
 function renderSynopsis(thisMonthLogs, qLabel, redFlagsData, stalledCount) {
   const stats = computeSynopsisStats(SYNOPSIS_PERIOD, thisMonthLogs, qLabel);
   const tabs = SYNOPSIS_TABS.map(t =>
@@ -305,15 +328,22 @@ function renderSynopsis(thisMonthLogs, qLabel, redFlagsData, stalledCount) {
 
   const flagPhrase = redFlagsData.flags.length === 0
     ? 'no AOP red flags'
-    : `<b>${redFlagsData.flags.length} AOP red flag${redFlagsData.flags.length === 1 ? '' : 's'}</b> (${redFlagsData.criticalCount} critical)`;
+    : backlinkSpan('redFlags', `${redFlagsData.flags.length} AOP red flag${redFlagsData.flags.length === 1 ? '' : 's'} (${redFlagsData.criticalCount} critical)`);
   const stalledPhrase = stalledCount === 0
     ? 'no deals stalled 30+ days'
-    : `<b>${stalledCount} deal${stalledCount === 1 ? '' : 's'} stalled</b> 30+ days`;
+    : backlinkSpan('stalled', `${stalledCount} deal${stalledCount === 1 ? '' : 's'} stalled 30+ days`);
 
-  const narrative = `In ${stats.periodLabel}: <b>${stats.leads}</b> new leads sourced, <b>${stats.visits}</b> site visits,
-    <b>${stats.meetings}</b> broker/owner meetings, and <b>${stats.dealsClosed}</b> deal${stats.dealsClosed === 1 ? '' : 's'} signed
-    (${stats.acresSigned.toFixed(1)} acres). Right now there ${redFlagsData.flags.length === 1 ? 'is' : 'are'} ${flagPhrase}
+  const narrative = `In ${stats.periodLabel}: ${backlinkSpan('leads', stats.leads)} new leads sourced,
+    ${backlinkSpan('visits', stats.visits)} site visits,
+    ${backlinkSpan('meetings', stats.meetings)} broker/owner meetings, and
+    ${backlinkSpan('dealsClosed', `${stats.dealsClosed} deal${stats.dealsClosed === 1 ? '' : 's'} signed`)}
+    (${backlinkSpan('acresSigned', `${stats.acresSigned.toFixed(1)} acres`)}). Right now there ${redFlagsData.flags.length === 1 ? 'is' : 'are'} ${flagPhrase}
     and ${stalledPhrase}.`;
+
+  const statItem = (key, val, label) =>
+    `<div class="synopsis-stat clickable" data-jump="${SYNOPSIS_SOURCES[key]}" role="button" tabindex="0">
+      <div class="ss-val">${val}</div><div class="ss-label">${label}</div>
+    </div>`;
 
   return `
     <div class="card synopsis-card">
@@ -321,13 +351,14 @@ function renderSynopsis(thisMonthLogs, qLabel, redFlagsData, stalledCount) {
       <div class="synopsis-tabs">${tabs}</div>
       <div class="synopsis-narrative">${narrative}</div>
       <div class="synopsis-stat-grid">
-        <div class="synopsis-stat"><div class="ss-val">${stats.leads}</div><div class="ss-label">New Leads</div></div>
-        <div class="synopsis-stat"><div class="ss-val">${stats.visits}</div><div class="ss-label">Site Visits</div></div>
-        <div class="synopsis-stat"><div class="ss-val">${stats.meetings}</div><div class="ss-label">Meetings</div></div>
-        <div class="synopsis-stat"><div class="ss-val">${stats.proposals}</div><div class="ss-label">Proposals</div></div>
-        <div class="synopsis-stat"><div class="ss-val">${stats.dealsClosed}</div><div class="ss-label">Deals Signed</div></div>
-        <div class="synopsis-stat"><div class="ss-val">${stats.acresSigned.toFixed(1)}</div><div class="ss-label">Acres Signed</div></div>
+        ${statItem('leads', stats.leads, 'New Leads')}
+        ${statItem('visits', stats.visits, 'Site Visits')}
+        ${statItem('meetings', stats.meetings, 'Meetings')}
+        ${statItem('proposals', stats.proposals, 'Proposals')}
+        ${statItem('dealsClosed', stats.dealsClosed, 'Deals Signed')}
+        ${statItem('acresSigned', stats.acresSigned.toFixed(1), 'Acres Signed')}
       </div>
+      <p style="font-size:11px;color:var(--grey-soft);margin-top:14px;">Click any figure to jump to where it comes from.</p>
     </div>`;
 }
 
@@ -337,6 +368,31 @@ function bindSynopsisTabs() {
       SYNOPSIS_PERIOD = btn.dataset.synopsis;
       render();
     });
+  });
+}
+
+// Opens the target section if it's a collapsed <details>, scrolls it into
+// view, and gives it a brief highlight flash so the CEO can see exactly
+// where a synopsis figure came from.
+function jumpToSource(targetId) {
+  const el = document.getElementById(targetId);
+  if (!el) return;
+  if (el.tagName === 'DETAILS') el.open = true;
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  el.classList.remove('backlink-flash');
+  void el.offsetWidth; // restart the animation if clicked again before it finishes
+  el.classList.add('backlink-flash');
+  setTimeout(() => el.classList.remove('backlink-flash'), 1800);
+}
+
+function bindBacklinks() {
+  document.querySelectorAll('[data-jump]').forEach(el => {
+    el.addEventListener('click', () => jumpToSource(el.dataset.jump));
+    if (el.getAttribute('role') === 'button') {
+      el.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); jumpToSource(el.dataset.jump); }
+      });
+    }
   });
 }
 
