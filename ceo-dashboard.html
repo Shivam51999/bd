@@ -85,6 +85,15 @@
   details.tier-section[open] > summary .chevron { transform: rotate(90deg); }
   details.tier-section > summary:hover { color: var(--ink); }
 
+  .synopsis-card { border-left: 4px solid var(--ink); margin-bottom: 4px; }
+  .synopsis-tabs { display: flex; gap: 6px; margin-bottom: 18px; flex-wrap: wrap; }
+  .synopsis-narrative { font-size: 15px; line-height: 1.6; color: var(--ink); font-family: Georgia, serif; margin-bottom: 18px; }
+  .synopsis-narrative b { color: var(--red-deep); }
+  .synopsis-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 14px; padding-top: 16px; border-top: 1px solid var(--border-soft); }
+  .synopsis-stat { text-align: center; }
+  .synopsis-stat .ss-val { font-size: 24px; font-weight: 700; font-family: Georgia, serif; color: var(--ink); }
+  .synopsis-stat .ss-label { font-size: 10.5px; color: var(--grey); text-transform: uppercase; letter-spacing: 0.4px; margin-top: 2px; }
+
   .quarter-snapshot { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
   .qs-item { border-left: 3px solid var(--border); padding-left: 14px; }
   .qs-item .qs-label { font-size: 11px; color: var(--grey); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
