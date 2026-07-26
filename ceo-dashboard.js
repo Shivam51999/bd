@@ -24,6 +24,7 @@ const DOCUMENT_CHECKLIST = {
 let STATE = { dailyLogs: [], deals: [], targets: [], stageHistory: [], dealActivity: [], directory: [], documents: [] };
 let SELECTED_QUARTER = getCurrentQuarter();
 let PIPELINE_FILTER = { search: '', category: 'All', status: 'All' };
+let SYNOPSIS_PERIOD = 'mtd'; // 'mtd' | 'quarter' | 'annual' | 'alltime'
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('todayBadge').textContent = formatDateLong(new Date());
@@ -97,8 +98,12 @@ function render() {
   const qDealsSignedActual = countDealsSignedInQuarter(SELECTED_QUARTER);
 
   const hasAnalyticsData = STATE.deals.length > 0 || STATE.dailyLogs.length > 0;
+  const redFlagsData = computeAOPRedFlags(activeDeals, signedDeals, qTarget);
+  const stalledCount = getStalledDeals().length;
 
   const html = `
+    ${renderSynopsis(thisMonthLogs, SELECTED_QUARTER, redFlagsData, stalledCount)}
+
     <div class="tier-heading tier1"><span>\ud83d\udd34 Daily Glance</span><div class="line"></div></div>
     <div class="tier-sub">What needs your attention right now \u2014 checked every morning.</div>
 
@@ -214,6 +219,7 @@ function render() {
   `;
   document.getElementById('dashboardRoot').innerHTML = html;
   renderQuarterTabs();
+  bindSynopsisTabs();
 }
 
 // Condensed 3-line current-quarter status for the Tier-1 daily view \u2014
@@ -236,6 +242,102 @@ function renderQuarterSnapshot(qTarget, proposalsActual, acresActual, dealsSigne
     </div>`;
   }).join('');
   return `<div class="quarter-snapshot">${items}</div>`;
+}
+
+/* ============================================================
+   EXECUTIVE SYNOPSIS — one-glance narrative at the top of the page,
+   switchable between This Month / This Quarter / FY26-27 / All-Time.
+   Reuses the same date-window logic as the Performance Dashboard table
+   (Weekly Check) but condenses it into a short sentence + stat strip
+   instead of a table, for the very first thing the CEO reads.
+   ============================================================ */
+const SYNOPSIS_TABS = [
+  { key: 'mtd', label: 'This Month' },
+  { key: 'quarter', label: 'This Quarter' },
+  { key: 'annual', label: 'FY26-27' },
+  { key: 'alltime', label: 'All-Time' },
+];
+
+function computeSynopsisStats(periodKey, thisMonthLogs, qLabel) {
+  const sums = (arr, key) => arr.reduce((s, d) => s + (Number(d[key]) || 0), 0);
+  let logs, closedDeals, periodLabel;
+
+  if (periodKey === 'mtd') {
+    logs = thisMonthLogs;
+    closedDeals = STATE.deals.filter(d => d.stage === 'Signed' && isSameMonth(d.lastUpdated, new Date()));
+    periodLabel = 'this month';
+  } else if (periodKey === 'quarter') {
+    const [s, e] = quarterBoundsCalendar(qLabel);
+    logs = STATE.dailyLogs.filter(d => { const c = extractDateOnly(d.date); return c && c >= s && c <= e; });
+    closedDeals = STATE.deals.filter(d => {
+      if (d.stage !== 'Signed') return false;
+      const c = extractDateOnly(d.lastUpdated);
+      return c && c >= s && c <= e;
+    });
+    periodLabel = qLabel;
+  } else if (periodKey === 'annual') {
+    const s = '2026-04-01', e = '2027-03-31';
+    logs = STATE.dailyLogs.filter(d => { const c = extractDateOnly(d.date); return c && c >= s && c <= e; });
+    closedDeals = STATE.deals.filter(d => d.stage === 'Signed');
+    periodLabel = 'FY26-27 so far';
+  } else {
+    logs = STATE.dailyLogs;
+    closedDeals = STATE.deals.filter(d => d.stage === 'Signed');
+    periodLabel = 'all-time';
+  }
+
+  return {
+    periodLabel,
+    leads: sums(logs, 'newLeads'),
+    visits: sums(logs, 'siteVisits'),
+    meetings: sums(logs, 'brokerMeetings') + sums(logs, 'ownerMeetings'),
+    proposals: sums(logs, 'proposalsPresented'),
+    dealsClosed: closedDeals.length,
+    acresSigned: sums(closedDeals, 'areaAcres'),
+  };
+}
+
+function renderSynopsis(thisMonthLogs, qLabel, redFlagsData, stalledCount) {
+  const stats = computeSynopsisStats(SYNOPSIS_PERIOD, thisMonthLogs, qLabel);
+  const tabs = SYNOPSIS_TABS.map(t =>
+    `<button class="quarter-tab ${t.key === SYNOPSIS_PERIOD ? 'active' : ''}" data-synopsis="${t.key}">${t.label}</button>`
+  ).join('');
+
+  const flagPhrase = redFlagsData.flags.length === 0
+    ? 'no AOP red flags'
+    : `<b>${redFlagsData.flags.length} AOP red flag${redFlagsData.flags.length === 1 ? '' : 's'}</b> (${redFlagsData.criticalCount} critical)`;
+  const stalledPhrase = stalledCount === 0
+    ? 'no deals stalled 30+ days'
+    : `<b>${stalledCount} deal${stalledCount === 1 ? '' : 's'} stalled</b> 30+ days`;
+
+  const narrative = `In ${stats.periodLabel}: <b>${stats.leads}</b> new leads sourced, <b>${stats.visits}</b> site visits,
+    <b>${stats.meetings}</b> broker/owner meetings, and <b>${stats.dealsClosed}</b> deal${stats.dealsClosed === 1 ? '' : 's'} signed
+    (${stats.acresSigned.toFixed(1)} acres). Right now there ${redFlagsData.flags.length === 1 ? 'is' : 'are'} ${flagPhrase}
+    and ${stalledPhrase}.`;
+
+  return `
+    <div class="card synopsis-card">
+      <div class="card-title">Executive Synopsis</div>
+      <div class="synopsis-tabs">${tabs}</div>
+      <div class="synopsis-narrative">${narrative}</div>
+      <div class="synopsis-stat-grid">
+        <div class="synopsis-stat"><div class="ss-val">${stats.leads}</div><div class="ss-label">New Leads</div></div>
+        <div class="synopsis-stat"><div class="ss-val">${stats.visits}</div><div class="ss-label">Site Visits</div></div>
+        <div class="synopsis-stat"><div class="ss-val">${stats.meetings}</div><div class="ss-label">Meetings</div></div>
+        <div class="synopsis-stat"><div class="ss-val">${stats.proposals}</div><div class="ss-label">Proposals</div></div>
+        <div class="synopsis-stat"><div class="ss-val">${stats.dealsClosed}</div><div class="ss-label">Deals Signed</div></div>
+        <div class="synopsis-stat"><div class="ss-val">${stats.acresSigned.toFixed(1)}</div><div class="ss-label">Acres Signed</div></div>
+      </div>
+    </div>`;
+}
+
+function bindSynopsisTabs() {
+  document.querySelectorAll('[data-synopsis]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      SYNOPSIS_PERIOD = btn.dataset.synopsis;
+      render();
+    });
+  });
 }
 
 function renderQuarterTabs() {
@@ -436,7 +538,7 @@ const NEGOTIATION_STAGES = ['Feasibility', 'Negotiation', 'Term Sheet', 'Due Dil
  * after fiscal year start" calculation, because the source document
  * names a literal calendar date, not a relative one.
  */
-function renderAOPRedFlags(activeDeals, signedDeals, currentQuarterTarget) {
+function computeAOPRedFlags(activeDeals, signedDeals, currentQuarterTarget) {
   const today = new Date();
   const flags = [];
 
@@ -498,6 +600,32 @@ function renderAOPRedFlags(activeDeals, signedDeals, currentQuarterTarget) {
   // authority, so this can't be auto-flagged from data.
   const governanceReminder = signedDeals.length > 0;
 
+  return {
+    flags,
+    governanceReminder,
+    signedCount: signedDeals.length,
+    criticalCount: flags.filter(f => f.severity === 'critical').length,
+    warningCount: flags.filter(f => f.severity === 'warning').length,
+  };
+}
+
+/**
+ * AOP NAMED RED FLAGS — Section 07 of the Mangalam Land Acquisition
+ * Strategy FY2026-27. These are the EXACT thresholds from that document,
+ * not generic heuristics. Four of the five rules are checkable from data;
+ * one ("MOU signed without SSS authority") is a process/governance rule
+ * that has no corresponding field to check automatically — it's listed
+ * as a standing reminder, not an auto-detected flag.
+ *
+ * Hardcoded dates (June 15, 2026 etc.) are specific to FY2026-27 as named
+ * in the AOP. If a future fiscal year's AOP names different dates, this
+ * function needs updating — it is deliberately NOT a generic "30 days
+ * after fiscal year start" calculation, because the source document
+ * names a literal calendar date, not a relative one.
+ */
+function renderAOPRedFlags(activeDeals, signedDeals, currentQuarterTarget) {
+  const { flags, governanceReminder, signedCount } = computeAOPRedFlags(activeDeals, signedDeals, currentQuarterTarget);
+
   if (flags.length === 0 && !governanceReminder) {
     return `<div class="card" style="border-left:4px solid var(--green);">
       <div class="empty-state" style="padding:12px 0;"><div class="icon">\u2705</div>No AOP red flags triggered right now.</div>
@@ -515,7 +643,7 @@ function renderAOPRedFlags(activeDeals, signedDeals, currentQuarterTarget) {
 
   const reminderCard = governanceReminder ? `<div style="background:#EFEFEF;border-left:4px solid var(--grey);border-radius:8px;padding:14px 16px;">
       <div style="font-weight:700;font-size:13.5px;color:var(--ink);">\u2139\ufe0f Governance reminder</div>
-      <div style="font-size:12px;color:var(--grey);margin-top:4px;">Per AOP: MOUs signed without SSS authority are a non-negotiable breach, reviewed by RP within 24 hours. This isn't auto-checkable from system data — confirm signing authority was followed for all ${signedDeals.length} signed deal(s).</div>
+      <div style="font-size:12px;color:var(--grey);margin-top:4px;">Per AOP: MOUs signed without SSS authority are a non-negotiable breach, reviewed by RP within 24 hours. This isn't auto-checkable from system data — confirm signing authority was followed for all ${signedCount} signed deal(s).</div>
     </div>` : '';
 
   return `
