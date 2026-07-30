@@ -56,115 +56,30 @@
     text-transform: uppercase; letter-spacing: 1.2px;
   }
   .topbar .right { text-align: right; }
-  .topbar .date-badge { background: var(--bg); border: 1px solid var(--border); padding: 7px 14px; border-radius: 20px; font-size: 13px; color: var(--grey); }
   .topbar .refresh-note { font-size: 11px; color: var(--grey-soft); margin-top: 6px; }
 
-  .container { max-width: 1280px; margin: 0 auto; padding: 32px 28px 60px; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 32px 28px 60px; }
 
-  .section-label {
-    font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
-    color: var(--grey); margin: 36px 0 14px;
-    display: flex; align-items: center; gap: 10px;
+  .section-heading {
+    font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px;
+    color: var(--ink); margin: 40px 0 4px; display: flex; align-items: center; gap: 10px;
   }
-  .section-label:first-child { margin-top: 0; }
-  .section-label .line { flex: 1; height: 1px; background: var(--border); }
+  .section-heading:first-child { margin-top: 0; }
+  .section-heading .line { flex: 1; height: 1px; background: var(--border); }
+  .section-sub { font-size: 11.5px; color: var(--grey-soft); margin: -2px 0 16px; }
 
-  /* ---------- TIER SYSTEM (Daily Glance / Weekly Check / Reference) ---------- */
-  .tier-heading {
-    font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px;
-    color: var(--grey-soft); margin: 44px 0 4px; display: flex; align-items: center; gap: 10px;
-  }
-  .tier-heading .line { flex: 1; height: 1px; background: var(--border); }
-  .tier-heading.tier1 { color: var(--red-deep); }
-  .tier-sub { font-size: 11.5px; color: var(--grey-soft); margin: -2px 0 16px; }
-
-  details.tier-section { margin-bottom: 4px; }
-  details.tier-section > summary {
-    list-style: none; cursor: pointer; font-size: 11.5px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 1px; color: var(--grey); margin: 20px 0 14px; display: flex; align-items: center; gap: 10px;
-    padding: 4px 0;
-  }
-  details.tier-section > summary::-webkit-details-marker { display: none; }
-  details.tier-section > summary .line { flex: 1; height: 1px; background: var(--border); }
-  details.tier-section > summary .chevron { color: var(--grey-soft); font-size: 11px; transition: transform 0.2s; }
-  details.tier-section[open] > summary .chevron { transform: rotate(90deg); }
-  details.tier-section > summary:hover { color: var(--ink); }
-
-  .synopsis-card { border-left: 4px solid var(--ink); margin-bottom: 4px; }
-  .synopsis-tabs { display: flex; gap: 6px; margin-bottom: 18px; flex-wrap: wrap; }
-  .synopsis-narrative { font-size: 15px; line-height: 1.6; color: var(--ink); font-family: Georgia, serif; margin-bottom: 18px; }
-  .synopsis-narrative b { color: var(--red-deep); }
-  .synopsis-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 14px; padding-top: 16px; border-top: 1px solid var(--border-soft); }
-  .synopsis-stat { text-align: center; }
-  .synopsis-stat .ss-val { font-size: 24px; font-weight: 700; font-family: Georgia, serif; color: var(--ink); letter-spacing: -0.02em; }
-  .synopsis-stat .ss-label { font-size: 10.5px; color: var(--grey); text-transform: uppercase; letter-spacing: 0.4px; margin-top: 2px; }
-  .synopsis-stat.clickable { cursor: pointer; border-radius: var(--radius-sm); transition: background 0.15s; }
-  .synopsis-stat.clickable:hover { background: var(--border-soft); }
-  .synopsis-stat.clickable:hover .ss-val { color: var(--red-deep); }
-
-  .backlink {
-    background: none; border: none; padding: 0; margin: 0; font: inherit; cursor: pointer;
-    font-weight: 700; color: var(--red-deep); text-decoration: underline; text-decoration-style: dotted;
-    text-underline-offset: 3px; text-decoration-color: var(--grey-soft); transition: color 0.15s, text-decoration-color 0.15s;
-  }
-  .backlink:hover { color: var(--red); text-decoration-color: var(--red); }
-
-  @keyframes backlinkFlash {
-    0%, 55% { outline: 3px solid var(--red-deep); outline-offset: 4px; background-color: #FBEEEE; }
-    100% { outline: 3px solid transparent; outline-offset: 4px; background-color: transparent; }
-  }
-  .backlink-flash { animation: backlinkFlash 1.8s ease-out; border-radius: var(--radius-sm); }
-
-  .quarter-snapshot { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
-  .qs-item { border-left: 3px solid var(--border); padding-left: 14px; }
-  .qs-item .qs-label { font-size: 11px; color: var(--grey); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-  .qs-item .qs-value { font-size: 22px; font-weight: 700; font-family: Georgia, serif; color: var(--ink); margin: 4px 0; letter-spacing: -0.02em; }
-  .qs-item .qs-value .qs-target { font-size: 13px; color: var(--grey); font-weight: 400; font-family: inherit; }
-
-  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
-  .kpi-card {
-    background: var(--card); border-radius: var(--radius); padding: 22px 24px;
-    box-shadow: var(--shadow); border-left: 4px solid var(--red);
-  }
-  .kpi-card.alt { border-left-color: var(--ink); }
-  .kpi-card.alt2 { border-left-color: var(--grey-soft); }
-  .kpi-card .kpi-label { font-size: 11.5px; color: var(--grey); font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; }
-  .kpi-card .kpi-value { font-size: 34px; font-weight: 700; color: var(--ink); margin: 8px 0 4px; font-family: Georgia, serif; letter-spacing: -0.02em; }
-  .kpi-card .kpi-sub { font-size: 12.5px; color: var(--grey); }
-
-  .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px 26px; margin-bottom: 4px; border: 1px solid var(--border-soft); }
-  .card-title { font-size: 15.5px; font-weight: 700; color: var(--ink); margin-bottom: 16px; letter-spacing: -0.1px; }
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px 24px; margin-bottom: 16px; border: 1px solid var(--border-soft); }
+  .card-title { font-size: 15px; font-weight: 700; color: var(--ink); margin-bottom: 14px; letter-spacing: -0.1px; }
   .card-title .as-of { font-size: 11px; color: var(--grey); font-weight: 500; float: right; }
 
-  .funnel-wrap { display: flex; gap: 12px; flex-wrap: wrap; }
-  .funnel-stage {
-    flex: 1; min-width: 150px; border-radius: var(--radius-sm); padding: 20px 16px; text-align: center; color: white;
-    background: var(--ink);
-  }
-  .funnel-stage:nth-child(2) { background: var(--ink-light); }
-  .funnel-stage:nth-child(3) { background: var(--grey); }
-  .funnel-stage:nth-child(4) { background: var(--red); }
-  .funnel-stage .fs-count { font-size: 30px; font-weight: 700; font-family: Georgia, serif; letter-spacing: -0.02em; }
-  .funnel-stage .fs-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; margin-top: 5px; opacity: 0.92; }
-
-  .progress-row { margin-bottom: 18px; }
-  .progress-row .pr-label { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 6px; }
-  .progress-row .pr-label .name { font-weight: 700; color: var(--ink); }
-  .progress-row .pr-label .val { color: var(--grey); font-weight: 600; }
-  .progress-bar-bg { background: var(--border-soft); border-radius: 7px; height: 11px; overflow: hidden; }
-  .progress-bar-fill { height: 100%; border-radius: 7px; background: var(--ink); transition: width 0.5s; }
-  .progress-bar-fill.gold { background: var(--amber); }
-  .progress-bar-fill.amber { background: var(--amber); }
-
-  .quarter-tabs { display: flex; gap: 6px; margin-bottom: 18px; }
-  .quarter-tab {
-    padding: 6.5px 15px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 700;
+  .cat-tabs { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+  .cat-tab {
+    padding: 7px 16px; border-radius: var(--radius-sm); font-size: 12.5px; font-weight: 700;
     border: 1px solid var(--border); background: white; color: var(--grey); cursor: pointer;
     transition: background 0.15s, color 0.15s, border-color 0.15s;
   }
-  .quarter-tab:hover { border-color: var(--ink); color: var(--ink); }
-  .quarter-tab.active { background: var(--ink); color: white; border-color: var(--ink); }
-  button:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+  .cat-tab:hover { border-color: var(--ink); color: var(--ink); }
+  .cat-tab.active { background: var(--ink); color: white; border-color: var(--ink); }
 
   table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
   th {
@@ -184,101 +99,63 @@
   .badge-negotiation { background: #FBE6D9; color: #B05A1F; }
   .badge-closed-signed { background: #E3F0E9; color: var(--green); }
   .badge-closed-dropped { background: #FAE3E2; color: var(--red-deep); }
+  .badge-pending { background: #FBF1DD; color: #8A6D1F; }
+  .badge-done { background: #E3F0E9; color: var(--green); }
 
-  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-  @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
-
-  .empty-state { text-align: center; padding: 50px 20px; color: var(--grey); }
-  .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
-
-  .stat-strip { display: flex; gap: 28px; flex-wrap: wrap; margin-top: 6px; padding-top: 16px; border-top: 1px solid var(--border-soft); }
-  .stat-strip .stat { font-size: 13px; color: var(--grey); }
-  .stat-strip .stat b { color: var(--ink); font-size: 16px; display: block; font-family: Georgia, serif; letter-spacing: -0.02em; }
-
-  .btn-search-trigger {
+  .view-btn {
     background: var(--ink); color: white; border: none; border-radius: var(--radius-sm);
-    padding: 8px 14px; font-size: 13px; font-weight: 700; cursor: pointer;
-    margin-right: 12px; letter-spacing: 0.2px; transition: background 0.15s;
+    padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer;
+    transition: background 0.15s;
   }
-  .btn-search-trigger:hover { background: var(--red); }
-  .search-panel-overlay {
-    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(40,40,40,0.55); z-index: 2000; align-items: flex-start;
-    justify-content: center; padding: 60px 20px 20px;
+  .view-btn:hover { background: var(--red); }
+  .link-btn {
+    background: none; border: none; color: var(--red); font-size: 12px; font-weight: 700;
+    cursor: pointer; padding: 0; text-decoration: underline; text-decoration-style: dotted;
   }
-  .search-panel-overlay.active { display: flex; }
-  .search-panel {
-    background: white; border-radius: var(--radius); width: 100%; max-width: 620px;
-    max-height: 80vh; display: flex; flex-direction: column; box-shadow: var(--shadow-lg);
+  .link-btn:hover { color: var(--red-deep); }
+
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--grey); }
+  .empty-state .icon { font-size: 36px; margin-bottom: 10px; }
+
+  .pl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+  .pl-card {
+    background: var(--card); border-radius: var(--radius); padding: 18px 20px;
+    box-shadow: var(--shadow); border-left: 4px solid var(--red);
   }
-  .search-panel-header { display: flex; align-items: center; gap: 10px; padding: 18px 20px 12px; border-bottom: 1px solid var(--border-soft); }
-  .search-panel-header input { flex: 1; border: 1px solid var(--border); border-radius: 6px; padding: 9px 14px; font-size: 14px; outline: none; }
-  .search-panel-header input:focus { border-color: var(--ink); }
-  .search-panel-close { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--grey); }
-  .search-panel-filters { padding: 10px 20px; border-bottom: 1px solid var(--border-soft); display: flex; gap: 8px; flex-wrap: wrap; }
-  .search-filter-btn { padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border); background: white; font-size: 12px; cursor: pointer; font-weight: 600; color: var(--grey); }
-  .search-filter-btn.active { background: var(--ink); color: white; border-color: var(--ink); }
-  .search-panel-results { overflow-y: auto; flex: 1; padding: 12px 20px 20px; }
-  .search-result-card { border: 1px solid var(--border-soft); border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-  .src-name { font-weight: 700; font-size: 14px; color: var(--ink); }
-  .src-type { font-size: 11px; color: var(--grey-soft); text-transform: uppercase; letter-spacing: 0.4px; margin-top: 2px; }
-  .src-phone { font-size: 13px; color: var(--ink); font-weight: 600; }
-  .src-notes { font-size: 12px; color: var(--grey); margin-top: 4px; }
-  .search-empty { text-align: center; padding: 32px; color: var(--grey); font-size: 14px; }
+  .pl-card.alt { border-left-color: var(--ink); }
+  .pl-card.alt2 { border-left-color: var(--green); }
+  .pl-card.alt3 { border-left-color: var(--amber); }
+  .pl-card .pl-label { font-size: 11px; color: var(--grey); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .pl-card .pl-value { font-size: 26px; font-weight: 700; color: var(--ink); margin: 6px 0 2px; font-family: Georgia, serif; letter-spacing: -0.02em; }
+  .pl-card .pl-sub { font-size: 11.5px; color: var(--grey); }
+
   .footer-note { text-align: center; font-size: 11.5px; color: var(--grey-soft); margin-top: 40px; letter-spacing: 0.2px; }
 
-  /* ---------- PERFORMANCE DASHBOARD TABLE ---------- */
-  .perf-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  .perf-table th { text-align: center; padding: 10px 14px; background: var(--bg); color: var(--ink); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border); }
-  .perf-table th:first-child { text-align: left; }
-  .perf-table td { padding: 12px 14px; border-bottom: 1px solid var(--border-soft); vertical-align: middle; text-align: center; }
-  .perf-metric { text-align: left !important; font-weight: 700; color: var(--ink); white-space: nowrap; }
-  .perf-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-  .perf-actual { font-size: 22px; font-weight: 700; font-family: Georgia, serif; color: var(--ink); line-height: 1; letter-spacing: -0.02em; }
-  .perf-target { font-size: 11px; color: var(--grey); }
-  .perf-pct { font-size: 12px; font-weight: 700; }
-
-
-  /* ---------- DEAL CARDS (Pipeline) ---------- */
-  .deal-card {
-    background: var(--card); border: 1px solid var(--border-soft); border-radius: var(--radius);
-    padding: 18px 20px; margin-bottom: 14px;
-  }
-  .deal-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
-  .deal-card-title { font-size: 15.5px; font-weight: 700; color: var(--ink); font-family: Georgia, serif; }
-  .deal-card-sub { font-size: 12px; color: var(--grey); margin-top: 3px; }
-  .deal-card-grid {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 10px 18px; padding-top: 12px; border-top: 1px solid var(--border-soft);
-  }
-  .dcg-label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--grey-soft); font-weight: 700; }
-  .dcg-val { display: block; font-size: 13px; color: var(--ink); margin-top: 2px; }
-  .timeline-link {
-    display: inline-block; margin-top: 14px; background: none; border: none;
-    color: var(--red); font-size: 12.5px; font-weight: 700; cursor: pointer; padding: 0;
-  }
-  .timeline-link:hover { color: var(--red-deep); }
-
-  /* ---------- TIMELINE MODAL ---------- */
+  /* ---------- MODALS ---------- */
   .modal-overlay {
     display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(40,40,40,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 20px;
   }
   .modal-overlay.active { display: flex; }
   .modal-box {
-    background: white; border-radius: var(--radius); max-width: 560px; width: 100%;
-    max-height: 80vh; overflow-y: auto; padding: 24px; box-shadow: var(--shadow-lg);
+    background: white; border-radius: var(--radius); max-width: 600px; width: 100%;
+    max-height: 84vh; overflow-y: auto; padding: 24px; box-shadow: var(--shadow-lg);
   }
   .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
   .modal-header h3 { color: var(--ink); font-size: 16px; font-family: Georgia, serif; }
   .modal-close { cursor: pointer; font-size: 20px; color: var(--grey); background: none; border: none; }
+
+  .plot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px 20px; }
+  .pg-label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--grey-soft); font-weight: 700; }
+  .pg-val { display: block; font-size: 13.5px; color: var(--ink); margin-top: 3px; }
+  .pg-val.full { grid-column: 1 / -1; white-space: pre-wrap; }
+  .pg-val a { color: var(--red-deep); }
+
   .timeline-list { position: relative; padding-left: 22px; }
   .timeline-item { position: relative; padding-bottom: 20px; border-left: 2px solid var(--border); padding-left: 18px; margin-left: 4px; }
   .timeline-item:last-child { border-left-color: transparent; padding-bottom: 0; }
   .timeline-dot { position: absolute; left: -5px; top: 2px; width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
   .timeline-date { font-size: 11px; color: var(--grey-soft); text-transform: uppercase; letter-spacing: 0.3px; }
-  .timeline-transition { font-size: 13.5px; color: var(--ink); margin-top: 2px; }
-
 
   .toast {
     position: fixed; bottom: 24px; right: 24px;
@@ -295,7 +172,7 @@
     .topbar { padding: 16px 18px; flex-direction: column; align-items: flex-start; gap: 12px; }
     .topbar .logo-img { height: 34px; }
     .container { padding: 18px; }
-    .card { padding: 18px; }
+    .card { padding: 16px; }
   }
 </style>
 </head>
@@ -311,8 +188,6 @@
     </div>
   </div>
   <div class="right">
-    <button class="btn-search-trigger" id="searchTriggerBtn" onclick="openSearchPanel()">🔍 Search Contacts</button>
-    <div class="date-badge" id="todayBadge">—</div>
     <div class="refresh-note" id="refreshNote">Loading…</div>
   </div>
 </div>
@@ -321,48 +196,25 @@
   <div class="empty-state"><div class="icon">⏳</div>Loading dashboard…</div>
 </div>
 
-<!-- ============ CONTACT SEARCH PANEL ============ -->
-<div class="search-panel-overlay" id="searchPanel">
-  <div class="search-panel">
-    <div class="search-panel-header">
-      <input type="text" id="searchInput" placeholder="Search by name, phone, or notes…" oninput="runContactSearch()" autofocus>
-      <button class="search-panel-close" onclick="closeSearchPanel()">&times;</button>
+<!-- ============ PLOT DETAIL MODAL (Section 1: View) ============ -->
+<div class="modal-overlay" id="plotModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 id="plotModalTitle">Plot Details</h3>
+      <button class="modal-close" onclick="closePlotModal()">&times;</button>
     </div>
-    <div class="search-panel-filters">
-      <button class="search-filter-btn active" data-type="All" onclick="setSearchFilter('All')">All</button>
-      <button class="search-filter-btn" data-type="Broker" onclick="setSearchFilter('Broker')">Broker</button>
-      <button class="search-filter-btn" data-type="Landowner" onclick="setSearchFilter('Landowner')">Landowner</button>
-      <button class="search-filter-btn" data-type="Developer" onclick="setSearchFilter('Developer')">Developer</button>
-      <button class="search-filter-btn" data-type="Other" onclick="setSearchFilter('Other')">Other</button>
-    </div>
-    <div class="search-panel-results" id="searchResults">
-      <div class="search-empty">Start typing to search contacts…</div>
-    </div>
+    <div id="plotModalBody"></div>
   </div>
 </div>
 
-<!-- ============ TIMELINE MODAL (read-only) ============ -->
+<!-- ============ ACTIVITY TIMELINE MODAL (Section 2: Work Done drill-down) ============ -->
 <div class="modal-overlay" id="timelineModal">
   <div class="modal-box">
     <div class="modal-header">
       <h3 id="timelineModalTitle">Activity Timeline</h3>
-      <button class="modal-close" id="timelineModalClose" onclick="closeTimelineModal()">&times;</button>
+      <button class="modal-close" onclick="closeTimelineModal()">&times;</button>
     </div>
     <div id="timelineModalBody"></div>
-  </div>
-</div>
-
-<!-- ============ DOCUMENT STATUS MODAL (read-only, view/download links only) ============ -->
-<div class="modal-overlay" id="ceoDocumentModal">
-  <div class="modal-box" style="max-width:580px;">
-    <div class="modal-header">
-      <h3 id="ceoDocumentModalTitle">Documents</h3>
-      <button class="modal-close" onclick="closeCeoDocumentModal()">&times;</button>
-    </div>
-    <p style="font-size:12px;color:var(--grey);margin-bottom:16px;">
-      Read-only view. To upload or replace documents, use the BD Entry Tool's Deal Pipeline tab.
-    </p>
-    <div id="ceoDocumentModalBody"></div>
   </div>
 </div>
 
