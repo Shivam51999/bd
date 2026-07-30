@@ -89,9 +89,46 @@
   }
   td { padding: 11px 14px; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
   tbody tr:hover td { background: var(--border-soft); }
-  .table-wrap { overflow-x: auto; overflow-y: hidden; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); }
+  .table-wrap { overflow-x: auto; overflow-y: auto; max-height: 420px; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); }
   .table-wrap table { border: none; }
   .table-wrap th:first-child, .table-wrap td:first-child { padding-left: 16px; }
+  .table-wrap th { position: sticky; top: 0; z-index: 1; }
+
+  /* ---------- SUMMARY (top highlights, click to jump to source) ---------- */
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .summary-stat {
+    background: var(--card); border: 1px solid var(--border-soft); border-radius: var(--radius);
+    padding: 14px 16px; cursor: pointer; transition: box-shadow 0.15s, border-color 0.15s; text-align: left;
+  }
+  .summary-stat:hover { box-shadow: var(--shadow-md); border-color: var(--ink); }
+  .summary-stat .sm-label { font-size: 10.5px; color: var(--grey); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .summary-stat .sm-value { font-size: 22px; font-weight: 700; color: var(--ink); margin: 5px 0 2px; font-family: Georgia, serif; letter-spacing: -0.02em; }
+  .summary-stat .sm-sub { font-size: 11px; color: var(--grey-soft); }
+  .summary-stat.warn .sm-value { color: var(--red-deep); }
+  .summary-group-label { font-size: 10.5px; color: var(--grey-soft); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700; margin: 14px 0 8px; }
+  .summary-group-label:first-child { margin-top: 0; }
+
+  @keyframes sectionFlash {
+    0%, 55% { outline: 3px solid var(--red-deep); outline-offset: 4px; background-color: #FBEEEE; }
+    100% { outline: 3px solid transparent; outline-offset: 4px; background-color: transparent; }
+  }
+  .section-flash { animation: sectionFlash 1.8s ease-out; border-radius: var(--radius); }
+
+  /* ---------- FILTER BAR ---------- */
+  .filter-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+  .filter-bar input[type="text"] {
+    flex: 1; min-width: 180px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 8px 12px; font-size: 13px; outline: none;
+  }
+  .filter-bar input[type="text"]:focus { border-color: var(--ink); }
+  .filter-bar select {
+    border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px;
+    font-size: 13px; background: white; color: var(--ink); cursor: pointer;
+  }
+  .filter-bar label.chk { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--grey); cursor: pointer; white-space: nowrap; }
+  .filter-clear { background: none; border: none; color: var(--red); font-size: 12px; font-weight: 700; cursor: pointer; text-decoration: underline; }
+
+  .badge-dup { background: #FBE6D9; color: #B05A1F; }
 
   .badge { display: inline-block; padding: 3.5px 10px; border-radius: var(--radius-sm); font-size: 10px; font-weight: 800; white-space: nowrap; letter-spacing: 0.4px; }
   .badge-sourcing { background: #EFEFEF; color: var(--ink); }
