@@ -326,6 +326,11 @@ function setupDealModal() {
 
   document.getElementById('dealForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+    // Guard against double-submit (double click, slow network + repeat tap) —
+    // the most common cause of the same parcel getting added twice.
+    const submitBtn = document.getElementById('dealSubmitBtn');
+    if (submitBtn && submitBtn.disabled) return;
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
     const id = document.getElementById('deal_id').value;
     const stage = document.getElementById('deal_stage').value;
     const phase = stage === 'Lead' ? 'Sourcing'
@@ -387,6 +392,8 @@ function setupDealModal() {
       await loadAll();
     } catch (err) {
       showToast('Failed to save deal: ' + err.message, true);
+    } finally {
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Save Deal'; }
     }
   });
 
