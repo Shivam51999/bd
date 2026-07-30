@@ -338,6 +338,12 @@ function setupDealModal() {
       location: document.getElementById('deal_location').value,
       surveyNumber: document.getElementById('deal_surveyNumber').value,
       areaAcres: Number(document.getElementById('deal_areaAcres').value) || 0,
+      googleLocation: document.getElementById('deal_googleLocation').value,
+      ownerName: document.getElementById('deal_ownerName').value,
+      ownerPhone: document.getElementById('deal_ownerPhone').value,
+      roadWidth: document.getElementById('deal_roadWidth').value,
+      roadConnectivity: document.getElementById('deal_roadConnectivity').value,
+      feasibilityNotes: document.getElementById('deal_feasibilityNotes').value,
       source: document.getElementById('deal_source').value,
       sourceDetail: document.getElementById('deal_sourceDetail').value,
       sourcePhone: document.getElementById('deal_sourcePhone').value,
@@ -354,6 +360,17 @@ function setupDealModal() {
       currentOffer: document.getElementById('deal_currentOffer').value,
       nextAction: document.getElementById('deal_nextAction').value,
       nextActionDate: document.getElementById('deal_nextActionDate').value,
+      totalInvestment: document.getElementById('deal_totalInvestment').value,
+      pbitAmount: document.getElementById('deal_pbitAmount').value,
+      pbitPct: document.getElementById('deal_pbitPct').value,
+      patAmount: document.getElementById('deal_patAmount').value,
+      roiPct: document.getElementById('deal_roiPct').value,
+      closedStatus: document.getElementById('deal_closedStatus').value,
+      demarcationStatus: document.getElementById('deal_demarcationStatus').value,
+      privateStatus: document.getElementById('deal_privateStatus').value,
+      mouStatus: document.getElementById('deal_mouStatus').value,
+      paDaStatus: document.getElementById('deal_paDaStatus').value,
+      compoundWallStatus: document.getElementById('deal_compoundWallStatus').value,
       remarks: document.getElementById('deal_remarks').value,
     };
 
@@ -400,6 +417,12 @@ function openDealModal(deal) {
     document.getElementById('deal_location').value = deal.location || '';
     document.getElementById('deal_surveyNumber').value = deal.surveyNumber || '';
     document.getElementById('deal_areaAcres').value = deal.areaAcres || '';
+    document.getElementById('deal_googleLocation').value = deal.googleLocation || '';
+    document.getElementById('deal_ownerName').value = deal.ownerName || '';
+    document.getElementById('deal_ownerPhone').value = deal.ownerPhone || '';
+    document.getElementById('deal_roadWidth').value = deal.roadWidth || '';
+    document.getElementById('deal_roadConnectivity').value = deal.roadConnectivity || '';
+    document.getElementById('deal_feasibilityNotes').value = deal.feasibilityNotes || '';
     document.getElementById('deal_source').value = deal.source || 'Broker';
     document.getElementById('deal_sourceDetail').value = deal.sourceDetail || '';
     document.getElementById('deal_sourcePhone').value = deal.sourcePhone || '';
@@ -416,6 +439,17 @@ function openDealModal(deal) {
     document.getElementById('deal_currentOffer').value = deal.currentOffer || '';
     document.getElementById('deal_nextAction').value = deal.nextAction || '';
     document.getElementById('deal_nextActionDate').value = deal.nextActionDate ? toISODate(new Date(deal.nextActionDate)) : '';
+    document.getElementById('deal_totalInvestment').value = deal.totalInvestment || '';
+    document.getElementById('deal_pbitAmount').value = deal.pbitAmount || '';
+    document.getElementById('deal_pbitPct').value = deal.pbitPct || '';
+    document.getElementById('deal_patAmount').value = deal.patAmount || '';
+    document.getElementById('deal_roiPct').value = deal.roiPct || '';
+    document.getElementById('deal_closedStatus').value = deal.closedStatus || 'Pending';
+    document.getElementById('deal_demarcationStatus').value = deal.demarcationStatus || 'Pending';
+    document.getElementById('deal_privateStatus').value = deal.privateStatus || 'Pending';
+    document.getElementById('deal_mouStatus').value = deal.mouStatus || 'Pending';
+    document.getElementById('deal_paDaStatus').value = deal.paDaStatus || 'Pending';
+    document.getElementById('deal_compoundWallStatus').value = deal.compoundWallStatus || 'Pending';
     document.getElementById('deal_remarks').value = deal.remarks || '';
   }
   document.getElementById('dealModal').classList.add('active');
